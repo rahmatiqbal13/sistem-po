@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ImageIcon, MessageCircle, Pencil, Trash2 } from 'lucide-react'
@@ -12,7 +12,7 @@ import { setOrderStatus, terimaTunaiSelesai } from '@/lib/data'
 import { errMsg, jam, parseRupiah, rupiah, tanggal, today } from '@/lib/format'
 import { normWa } from '@/lib/foto'
 import { useBatch } from '@/components/batch-context'
-import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, cx, inputCls, kodePesanan } from '@/components/ui'
+import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, Toast, cx, inputCls, kodePesanan, useConfirm } from '@/components/ui'
 
 const FLOW: OrderStatus[] = ['baru', 'dikonfirmasi', 'diproduksi', 'siap', 'selesai']
 const PANEL = 'rounded-card bg-surface px-6 py-4'
@@ -29,6 +29,10 @@ export default function PesananDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState('')
   const [paying, setPaying] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
+  // Pembayaran yang baru dihapus: bisa diurungkan selama notifikasi tampil
+  const [removed, setRemoved] = useState<Payment | null>(null)
+  const pendingFile = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -49,10 +53,14 @@ export default function PesananDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { if (order) document.title = `${order.customer_nama} · PO Jajanan` }, [order])
 
   async function changeStatus(s: OrderStatus) {
     if (!order || s === order.status) return
-    if (s === 'dibatalkan' && !window.confirm('Batalkan pesanan ini? Pesanan tetap tersimpan tetapi tidak dihitung di rekap dan tagihan.')) return
+    if (s === 'dibatalkan' && !(await confirm({
+      title: 'Batalkan pesanan ini?', danger: true, confirmLabel: 'Batalkan pesanan', cancelLabel: 'Kembali',
+      body: 'Pesanan tetap tersimpan, tetapi tidak dihitung di rekap produksi maupun tagihan. Bisa diaktifkan kembali nanti.',
+    }))) return
     setError('')
     try { await setOrderStatus(order.id, s, order.updated_at) } catch (e) { setError(errMsg(e).replace('KONFLIK: ', '')) }
     load()
@@ -60,18 +68,52 @@ export default function PesananDetailPage() {
 
   async function cod() {
     if (!order) return
-    if (!window.confirm(`Catat tunai ${rupiah(order.sisa)} dan tandai pesanan Selesai?`)) return
+    if (!(await confirm({
+      title: `Terima tunai ${rupiah(order.sisa)}?`, confirmLabel: 'Catat & selesai',
+      body: 'Pembayaran tunai sebesar sisa tagihan dicatat, lalu pesanan ditandai Selesai.',
+    }))) return
     setError('')
     try { await terimaTunaiSelesai(order) } catch (e) { setError(errMsg(e).replace('KONFLIK: ', '')) }
     load()
   }
 
+  // Hapus langsung, bisa diurungkan; foto bukti baru dihapus setelah notifikasi hilang
   async function deletePayment(p: Payment) {
-    if (!window.confirm(`Hapus pembayaran ${rupiah(p.jumlah)}?`)) return
-    const supabase = createClient()
-    if (p.bukti_path) await supabase.storage.from('bukti').remove([p.bukti_path])
-    await supabase.from('payments').delete().eq('id', p.id)
+    await flushRemovedFile()
+    const { error } = await createClient().from('payments').delete().eq('id', p.id)
+    if (error) return setError(errMsg(error))
+    pendingFile.current = p.bukti_path
+    setRemoved(p)
     load()
+  }
+
+  async function undoDelete() {
+    const p = removed
+    if (!p) return
+    pendingFile.current = null
+    setRemoved(null)
+    const { error } = await createClient().from('payments').insert({
+      id: p.id, order_id: p.order_id, jumlah: p.jumlah, metode: p.metode, tanggal_bayar: p.tanggal_bayar,
+      bukti_path: p.bukti_path, dicatat_oleh: p.dicatat_oleh, created_at: p.created_at,
+    })
+    if (error) setError('Gagal mengurungkan: ' + errMsg(error))
+    load()
+  }
+
+  async function flushRemovedFile() {
+    const path = pendingFile.current
+    pendingFile.current = null
+    if (path) await createClient().storage.from('bukti').remove([path])
+  }
+
+  // Keluar dari halaman sebelum notifikasi hilang: hapus foto bukti yang tertunda
+  useEffect(() => () => { flushRemovedFile() }, [])
+
+  // Kembali ke daftar dengan filter & halaman terakhir
+  function backToList() {
+    let search = ''
+    try { search = (JSON.parse(sessionStorage.getItem('pesanan.list') ?? 'null') as { search: string } | null)?.search ?? '' } catch {}
+    router.push('/pesanan' + search)
   }
 
   async function lihatBukti(path: string) {
@@ -93,11 +135,11 @@ export default function PesananDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" onClick={() => router.push('/pesanan')} className="-ml-2.5 px-2.5 text-[15px]">
+        <Button variant="ghost" onClick={backToList} className="-ml-2.5 px-2.5 text-[15px]">
           <ArrowLeft size={18} {...ICON} />Pesanan
         </Button>
         {!selesai && (
-          <Link href={`/pesanan/${order.id}/edit`} className="btn btn-secondary min-h-[42px]">
+          <Link href={`/pesanan/${order.id}/edit`} className="btn btn-secondary min-h-[44px]">
             <Pencil size={16} {...ICON} />Edit pesanan
           </Link>
         )}
@@ -139,7 +181,7 @@ export default function PesananDetailPage() {
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-4">
           <section className={PANEL}>
-            <h4 className="mb-2">Item</h4>
+            <h2 className="mb-2 text-xl">Item</h2>
             {items.map((i) => (
               <div key={i.id} className="flex justify-between gap-3 border-b border-divider py-3">
                 <div>
@@ -158,7 +200,7 @@ export default function PesananDetailPage() {
           </section>
 
           <section className={PANEL}>
-            <h4 className="mb-3">Pengambilan</h4>
+            <h2 className="mb-3 text-xl">Pengambilan</h2>
             <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5">
               <dt className="text-neutral-800">Cara terima</dt><dd className="m-0">{CARA_TERIMA[order.cara_terima]}</dd>
               <dt className="text-neutral-800">Tanggal</dt><dd className="m-0">{tanggal(order.tanggal_ambil)} {jam(order.jam_ambil)}</dd>
@@ -174,7 +216,7 @@ export default function PesananDetailPage() {
         <div className="flex min-w-0 max-w-[400px] flex-[1_1_320px] flex-col gap-4">
           <section className={SIDE}>
             <div className="flex items-center justify-between gap-2">
-              <h4>Pembayaran</h4>
+              <h2 className="text-xl">Pembayaran</h2>
               <BayarBadge status={order.status_bayar} dibatalkan={batal} />
             </div>
             <dl className="m-0 flex flex-col gap-1">
@@ -206,12 +248,12 @@ export default function PesananDetailPage() {
                 ))}
               </div>
             )}
-            {!batal && <Button className="min-h-[46px]" onClick={() => setPaying(true)}>Catat pembayaran</Button>}
+            {!batal && <Button variant={order.sumber === 'link' && order.status === 'baru' ? 'secondary' : 'primary'} className="min-h-[46px]" onClick={() => setPaying(true)}>Catat pembayaran</Button>}
           </section>
 
           <section className={SIDE}>
             <div className="flex items-center justify-between gap-2">
-              <h4>Status pesanan</h4>
+              <h2 className="text-xl">Status pesanan</h2>
               <OrderStatusBadge status={order.status} />
             </div>
             {!batal && (
@@ -220,7 +262,7 @@ export default function PesananDetailPage() {
                   <button key={f} type="button" onClick={() => changeStatus(f)} aria-current={i === curIdx ? 'step' : undefined}
                     className="-ml-1.5 flex min-h-[44px] items-center gap-3 rounded-full py-1.5 pl-1.5 pr-3 text-left hover:bg-accent-100">
                     <span className={cx('grid size-[30px] shrink-0 place-items-center rounded-full text-sm font-bold',
-                      i < curIdx ? 'bg-sage-600 text-bg' : i === curIdx ? 'bg-accent text-bg' : 'bg-neutral-300 text-neutral-800')}>
+                      i < curIdx ? 'bg-sage-700 text-bg' : i === curIdx ? 'bg-accent text-ink' : 'bg-neutral-300 text-neutral-800')}>
                       {i + 1}
                     </span>
                     <span className={i === curIdx ? 'font-bold' : ''}>{ORDER_STATUS[f]}</span>
@@ -232,7 +274,7 @@ export default function PesananDetailPage() {
               <Button variant="secondary" onClick={cod}>Terima tunai {rupiah(order.sisa)} &amp; selesai</Button>
             )}
             {!batal && !selesai && (
-              <Button variant="ghost" className="min-h-[40px] text-accent-800 hover:text-accent-800" onClick={() => changeStatus('dibatalkan')}>Batalkan pesanan</Button>
+              <Button variant="ghost" className="min-h-[44px] text-accent-800 hover:text-accent-800" onClick={() => changeStatus('dibatalkan')}>Batalkan pesanan</Button>
             )}
             {batal && <Button variant="secondary" onClick={() => changeStatus('baru')}>Aktifkan kembali</Button>}
           </section>
@@ -240,6 +282,11 @@ export default function PesananDetailPage() {
       </div>
 
       {paying && <PaymentForm order={order} onClose={() => setPaying(false)} onSaved={() => { setPaying(false); load() }} />}
+      {confirmDialog}
+      {removed && (
+        <Toast key={removed.id} message={`Pembayaran ${rupiah(removed.jumlah)} dihapus`} actionLabel="Urungkan" onAction={undoDelete}
+          onDone={() => { setRemoved(null); flushRemovedFile() }} />
+      )}
     </div>
   )
 }
@@ -254,6 +301,8 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
 
   const nominal = parseRupiah(jumlah)
   const lebih = kelebihanBayar(Number(order.total), Number(order.terbayar) + nominal)
+  // Kelebihan bayar: klik pertama hanya memunculkan peringatan, klik kedua menyimpan
+  const [okLebih, setOkLebih] = useState(false)
   const half = Math.ceil(Number(order.total) / 2)
   const quick = [{ v: Number(order.sisa), l: 'Lunasi' }, { v: half, l: 'DP 50%' }]
     .filter((x, i, a) => x.v > 0 && a.findIndex((y) => y.v === x.v) === i)
@@ -261,7 +310,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
   async function save(e: React.FormEvent) {
     e.preventDefault()
     if (nominal <= 0) return setError('Jumlah harus lebih dari 0.')
-    if (lebih > 0 && !window.confirm(`Pembayaran ini membuat kelebihan bayar ${rupiah(lebih)}. Tetap simpan?`)) return
+    if (lebih > 0 && !okLebih) return setOkLebih(true)
     setBusy(true)
     const supabase = createClient()
     let bukti_path: string | null = null
@@ -282,14 +331,14 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
       <form onSubmit={save} className="flex flex-col gap-4">
         {error && <Alert>{error}</Alert>}
         <Field label="Jumlah (Rp)" htmlFor="pay-jumlah" helper={`Sisa tagihan ${rupiah(order.sisa)}`}>
-          <input id="pay-jumlah" autoFocus inputMode="numeric" value={jumlah} onChange={(e) => setJumlah(e.target.value)}
+          <input id="pay-jumlah" autoFocus inputMode="numeric" value={jumlah} onChange={(e) => { setJumlah(e.target.value); setOkLebih(false) }}
             className={cx(inputCls, 'min-h-[48px] text-xl font-bold')} />
         </Field>
-        {lebih > 0 && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}.</Alert>}
+        {lebih > 0 && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}.{okLebih && ' Tekan tombol simpan sekali lagi bila memang benar.'}</Alert>}
         {quick.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
             {quick.map((x) => (
-              <Button key={x.l} variant="secondary" className="min-h-[42px] whitespace-normal" onClick={() => setJumlah(String(x.v))}>
+              <Button key={x.l} variant="secondary" className="min-h-[44px] whitespace-normal" onClick={() => { setJumlah(String(x.v)); setOkLebih(false) }}>
                 {x.l} {rupiah(x.v)}
               </Button>
             ))}
@@ -301,7 +350,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
             {(Object.keys(METODE) as Metode[]).map((m) => (
               <button key={m} type="button" aria-pressed={metode === m} onClick={() => setMetode(m)}
                 className={cx('min-h-[44px] rounded-full border px-1 text-sm font-semibold leading-tight',
-                  metode === m ? 'border-accent bg-accent text-bg' : 'border-divider text-ink hover:bg-neutral-200')}>
+                  metode === m ? 'border-accent bg-accent text-ink' : 'border-divider text-ink hover:bg-neutral-200')}>
                 {METODE[m]}
               </button>
             ))}
@@ -323,7 +372,9 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
             </div>
           </div>
         )}
-        <Button type="submit" disabled={busy} className="min-h-[48px]">{busy ? 'Menyimpan…' : 'Simpan pembayaran'}</Button>
+        <Button type="submit" disabled={busy} className="min-h-[48px]">
+          {busy ? 'Menyimpan…' : okLebih && lebih > 0 ? `Tetap simpan (lebih ${rupiah(lebih)})` : 'Simpan pembayaran'}
+        </Button>
       </form>
     </Modal>
   )

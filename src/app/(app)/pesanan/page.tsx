@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Download, Search } from 'lucide-react'
 import type { CaraTerima, OrderStatus, OrderSummary } from '@/lib/types'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
@@ -17,24 +17,63 @@ import {
 
 type BayarFilter = '' | 'belum' | 'dp' | 'lunas' | 'belum_lunas'
 const BAYAR_LABEL: Record<Exclude<BayarFilter, ''>, string> = { ...STATUS_BAYAR, belum_lunas: 'Belum lunas' }
+const PER_OPTIONS = [10, 20, 30, 40, 50]
+
+type ListData = { batchId: string; orders: OrderSummary[]; items: ItemWithOrder[] }
+// Data terakhir disimpan di memori agar daftar langsung tampil saat kembali dari detail
+let cache: ListData | null = null
+
+/** Simpan alamat daftar (dengan filter) + posisi gulir sebelum membuka detail */
+function rememberList() {
+  try { sessionStorage.setItem('pesanan.list', JSON.stringify({ search: window.location.search, y: window.scrollY })) } catch {}
+}
+
+/** Ubah filter di URL tanpa memuat ulang halaman; mengubah filter selalu kembali ke halaman 1 */
+function setParams(patch: Record<string, string | number | null>) {
+  const p = new URLSearchParams(window.location.search)
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null || v === '' || (k === 'per' && v === 10) || (k === 'hal' && v === 1)) p.delete(k)
+    else p.set(k, String(v))
+  }
+  if (!('hal' in patch)) p.delete('hal')
+  const qs = p.toString()
+  window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
+}
+
+function pick<T extends string>(v: string | null, allowed: readonly T[]): T | '' {
+  return v && (allowed as readonly string[]).includes(v) ? (v as T) : ''
+}
 
 export default function PesananPage() {
   const router = useRouter()
   const { batch, batchId, loading: batchLoading } = useBatch()
-  const [data, setData] = useState<{ batchId: string; orders: OrderSummary[]; items: ItemWithOrder[] } | null>(null)
+  const [data, setData] = useState<ListData | null>(() => cache)
   const [error, setError] = useState('')
-  const [q, setQ] = useState('')
-  const [bayar, setBayar] = useState<BayarFilter>('')
-  const [status, setStatus] = useState<OrderStatus | ''>('')
-  const [cara, setCara] = useState<CaraTerima | ''>('')
-  const [per, setPer] = useState(10)
-  const [pageState, setPageState] = useState({ key: '', n: 1 })
+
+  // Filter & halaman tersimpan di URL: tetap sama saat kembali dari detail, dan bisa dibagikan
+  const sp = useSearchParams()
+  const q = sp.get('q') ?? ''
+  const bayar = pick(sp.get('bayar'), ['belum', 'dp', 'lunas', 'belum_lunas'] as const) as BayarFilter
+  const status = pick(sp.get('status'), Object.keys(ORDER_STATUS) as OrderStatus[])
+  const cara = pick(sp.get('cara'), Object.keys(CARA_TERIMA) as CaraTerima[])
+  const perRaw = Number(sp.get('per'))
+  const per = PER_OPTIONS.includes(perRaw) ? perRaw : 10
+  const hal = Math.max(1, parseInt(sp.get('hal') ?? '1', 10) || 1)
+  // Kotak cari memakai state lokal agar mengetik tetap lancar; URL ikut diperbarui
+  const [qInput, setQInput] = useState(q)
+  const setQ = (v: string) => { setQInput(v); setParams({ q: v }) }
+  const setBayar = (v: BayarFilter) => setParams({ bayar: v })
+  const setStatus = (v: OrderStatus | '') => setParams({ status: v })
+  const setCara = (v: CaraTerima | '') => setParams({ cara: v })
+  const setPer = (n: number) => setParams({ per: n })
+  const setPage = (n: number) => { setParams({ hal: n }); window.scrollTo({ top: 0 }) }
 
   const load = useCallback(async () => {
     if (!batchId) return
     try {
       const [o, i] = await Promise.all([fetchBatchOrders(batchId), fetchBatchItems(batchId)])
-      setData({ batchId, orders: o, items: i })
+      cache = { batchId, orders: o, items: i }
+      setData(cache)
     } catch (e) { setError(errMsg(e)) }
   }, [batchId])
 
@@ -71,14 +110,24 @@ export default function PesananPage() {
   }, [orders])
   const linkBaru = (orders ?? []).filter((o) => o.sumber === 'link' && o.status === 'baru').length
 
-  // Halaman kembali ke 1 setiap kali filter, batch atau jumlah per halaman berubah
-  const filterKey = [batchId, q, bayar, status, cara, per].join('|')
-  const pg = paginate(filtered, pageState.key === filterKey ? pageState.n : 1, per)
-  const setPage = (n: number) => setPageState({ key: filterKey, n })
+  const pg = paginate(filtered, hal, per)
+
+  // Kembali dari detail: pulihkan posisi gulir setelah daftar tampil
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current || !orders) return
+    restored.current = true
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('pesanan.list') ?? 'null') as { search: string; y: number } | null
+      if (saved && saved.search === window.location.search && saved.y > 0) {
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: saved.y })))
+      }
+    } catch {}
+  }, [orders])
 
   const hasFilter = !!(q || bayar || status || cara)
-  const reset = () => { setQ(''); setBayar(''); setStatus(''); setCara('') }
-  const onlyBayar = (v: BayarFilter) => () => { reset(); setBayar(v) }
+  const reset = () => { setQInput(''); setParams({ q: null, bayar: null, status: null, cara: null }) }
+  const onlyBayar = (v: BayarFilter) => () => { setQInput(''); setParams({ q: null, bayar: v, status: null, cara: null }) }
 
   if (batchLoading) return <Loading />
   if (!batch) {
@@ -96,7 +145,7 @@ export default function PesananPage() {
     { label: 'Total pesanan', value: rupiah(sum.total), sub: `${sum.jumlah} pesanan aktif`, onClick: reset, active: !hasFilter, tone: '' },
     { label: 'Terbayar', value: rupiah(sum.terbayar), sub: `${sum.lunas} lunas`, onClick: onlyBayar('lunas'), active: bayar === 'lunas', tone: 'text-sage-700' },
     { label: 'Belum terbayar', value: rupiah(sum.sisa), sub: `${sum.dp} DP · ${sum.belum} belum bayar`, onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: sum.sisa > 0 ? 'text-accent-700' : '' },
-    { label: 'Pesanan belum lunas', value: String(sum.dp + sum.belum), sub: 'DP + belum bayar', onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: '' },
+    { label: 'Belum bayar sama sekali', value: String(sum.belum), sub: `${sum.dp + sum.belum} pesanan belum lunas`, onClick: onlyBayar('belum'), active: bayar === 'belum', tone: sum.belum > 0 ? 'text-accent-700' : '' },
   ]
 
   return (
@@ -120,7 +169,7 @@ export default function PesananPage() {
       </div>
 
       {linkBaru > 0 && status !== 'baru' && (
-        <button type="button" onClick={() => { reset(); setStatus('baru') }}
+        <button type="button" onClick={() => { setQInput(''); setParams({ q: null, bayar: null, status: 'baru', cara: null }) }}
           className="flex items-center gap-3 rounded-full bg-accent-200 py-3 pl-3 pr-6 text-left text-base font-bold text-accent-900 hover:bg-accent-300">
           <span className="grid size-[40px] shrink-0 place-items-center rounded-full bg-accent-700 text-[17px] text-accent-100">{linkBaru}</span>
           <span className="flex-1">pesanan baru dari link menunggu dikonfirmasi</span>
@@ -132,7 +181,7 @@ export default function PesananPage() {
       {rekap.length > 0 && (
         <section className="flex flex-col gap-3 rounded-card bg-sage-200 px-6 py-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h4 className="text-sage-900">Rekap produksi</h4>
+            <h2 className="text-xl text-sage-900">Rekap produksi</h2>
             <Link href="/rekap" className="btn btn-ghost text-sage-800 hover:text-sage-800">Lihat rekap lengkap →</Link>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -152,7 +201,7 @@ export default function PesananPage() {
           <label className="relative col-span-full block">
             <span className="sr-only">Cari nama atau nomor WA</span>
             <Search size={18} {...ICON} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-800" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau nomor WA" className="input min-h-[44px] pl-[42px]" />
+            <input value={qInput} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau nomor WA" className="input min-h-[44px] pl-[42px]" />
           </label>
           <select aria-label="Status bayar" value={bayar} onChange={(e) => setBayar(e.target.value as BayarFilter)} className="input min-h-[44px]">
             <option value="">Status bayar</option>
@@ -194,8 +243,8 @@ export default function PesananPage() {
             {pg.shown.map((o) => {
               const batal = o.status === 'dibatalkan'
               return (
-                <Link key={o.id} href={`/pesanan/${o.id}`}
-                  className={cx('flex flex-col gap-3 rounded-card bg-surface py-4 pl-6 pr-4 text-ink no-underline hover:bg-accent-100 hover:text-ink', batal && 'opacity-55')}>
+                <Link key={o.id} href={`/pesanan/${o.id}`} onClick={rememberList}
+                  className={cx('flex flex-col gap-3 rounded-card py-4 pl-6 pr-4 text-ink no-underline hover:bg-accent-100 hover:text-ink', batal ? 'bg-neutral-200' : 'bg-surface')}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-[19px] font-bold leading-tight">{o.customer_nama}</div>
@@ -235,11 +284,11 @@ export default function PesananPage() {
               <tbody>
                 {pg.shown.map((o) => {
                   const batal = o.status === 'dibatalkan'
-                  const open = () => router.push(`/pesanan/${o.id}`)
+                  const open = () => { rememberList(); router.push(`/pesanan/${o.id}`) }
                   return (
                     <tr key={o.id} tabIndex={0} aria-label={`Buka pesanan ${o.customer_nama}`} onClick={open}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }}
-                      className={cx('cursor-pointer', batal && 'opacity-55')}>
+                      className={cx('cursor-pointer', batal && 'bg-neutral-200')}>
                       <td>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-bold">{o.customer_nama}</span>
@@ -270,10 +319,10 @@ export default function PesananPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-[15px] text-neutral-800">{filtered.length ? `${pg.info} pesanan` : '0 pesanan'}</div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" className="min-h-[42px]" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'xlsx')}>
+            <Button variant="secondary" className="min-h-[44px]" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'xlsx')}>
               <Download size={18} {...ICON} />Ekspor Excel ({filtered.length})
             </Button>
-            <Button variant="ghost" className="min-h-[42px] px-3.5" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'csv')}>Ekspor CSV</Button>
+            <Button variant="ghost" className="min-h-[44px] px-3.5" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'csv')}>Ekspor CSV</Button>
           </div>
         </div>
       )}

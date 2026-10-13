@@ -212,7 +212,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
           <li key={s}>
             <button type="button" onClick={() => { setStep(i); setTouched(false) }} aria-current={i === step ? 'step' : undefined}
               className={cx('min-h-[44px] w-full rounded-full px-1.5 text-sm font-bold leading-tight',
-                i === step ? 'bg-accent text-bg' : i < step ? 'bg-accent-200 text-accent-900' : 'bg-surface text-ink')}>
+                i === step ? 'bg-accent text-ink' : i < step ? 'bg-accent-200 text-accent-900' : 'bg-surface text-ink')}>
               {i + 1}. {s}
             </button>
           </li>
@@ -266,7 +266,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
             </div>
             {cara !== 'pickup' && (
               <>
-                <Field label="Alamat" htmlFor="nb-alamat" helper="Wajib untuk pengantaran." error={shown.alamat}>
+                <Field label="Alamat" htmlFor="nb-alamat" helper="Wajib untuk pengantaran." error={shown.alamat} required>
                   <textarea id="nb-alamat" rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)}
                     aria-invalid={!!shown.alamat} className={inputCls} />
                 </Field>
@@ -334,7 +334,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                           onChange={(e) => setQty(p, parseInt(e.target.value.replace(/\D/g, '') || '0', 10))}
                           className="input min-h-[44px] w-[56px] bg-bg px-1 text-center text-[17px] font-bold" />
                         <button type="button" onClick={() => setQty(p, qty + 1)} aria-label={`Tambah ${p.nama}`}
-                          className="grid size-[44px] place-items-center rounded-full bg-accent text-bg hover:bg-accent-600">
+                          className="grid size-[44px] place-items-center rounded-full bg-accent text-ink hover:bg-accent-500">
                           <Plus size={18} {...ICON} />
                         </button>
                       </div>
@@ -425,7 +425,7 @@ function CustomerPicker({ value, onChange, error }: { value: Customer | null; on
     return (
       <div className="flex flex-col gap-3 rounded-lg bg-bg p-4">
         <div className="font-bold">Pembeli baru</div>
-        <Field label="Nama" htmlFor="nb-nama" error={err}>
+        <Field label="Nama" htmlFor="nb-nama" error={err} required>
           <input id="nb-nama" autoFocus autoComplete="off" value={nama} onChange={(e) => setNama(e.target.value)} className="input bg-neutral-100" />
         </Field>
         <Field label="Nomor WhatsApp" htmlFor="nb-wa" helper="Contoh: 0812 3456 7890">

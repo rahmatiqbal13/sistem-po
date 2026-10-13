@@ -37,7 +37,7 @@ export default function ProdukPage() {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
           {products.map((p) => (
-            <div key={p.id} className={cx('flex flex-col gap-3 rounded-card bg-surface px-6 py-4', !p.aktif && 'opacity-60')}>
+            <div key={p.id} className={cx('flex flex-col gap-3 rounded-card px-6 py-4', p.aktif ? 'bg-surface' : 'bg-neutral-200')}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-3">
                   <ProductPhoto url={fotoUrl(p.foto_path)} size={64} />
@@ -102,7 +102,7 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
     <Modal open onClose={onClose} title={product.id ? 'Edit produk' : 'Tambah produk'}>
       <form onSubmit={save} className="flex flex-col gap-4">
         {error && <Alert>{error}</Alert>}
-        <Field label="Nama produk" htmlFor="pf-nama" helper="Contoh: Kebab Sapi Jumbo">
+        <Field label="Nama produk" htmlFor="pf-nama" helper="Contoh: Kebab Sapi Jumbo" required>
           <input id="pf-nama" autoFocus value={nama} onChange={(e) => setNama(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Harga (Rp)" htmlFor="pf-harga" helper={hv ? `Tampil sebagai ${rupiah(hv)}` : 'Contoh: 15000'}>
@@ -127,7 +127,7 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
                 }} />
               </label>
               {preview && (
-                <Button variant="ghost" className="min-h-[40px] text-accent-800 hover:text-accent-800"
+                <Button variant="ghost" className="min-h-[44px] text-accent-800 hover:text-accent-800"
                   onClick={() => { setFoto(null); setHapusFoto(true); setPreview(null) }}>
                   Hapus foto
                 </Button>

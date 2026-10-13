@@ -34,7 +34,7 @@ export default function LoginPage() {
       <div aria-hidden="true" className="absolute right-[18%] top-[14%] -z-10 size-[90px] rounded-full bg-sage-400 opacity-50" />
       <form onSubmit={submit} className="relative flex w-full max-w-[420px] flex-col gap-4 rounded-card bg-surface px-6 py-8 shadow-md">
         <div className="flex items-center gap-2.5">
-          <div aria-hidden="true" className="grid size-[40px] place-items-center rounded-full bg-accent font-heading text-[19px] text-bg">P</div>
+          <div aria-hidden="true" className="grid size-[40px] place-items-center rounded-full bg-accent font-heading text-[19px] text-ink">P</div>
           <div className="font-heading text-[22px]">PO Jajanan</div>
         </div>
         <div>
@@ -51,7 +51,7 @@ export default function LoginPage() {
             <input id="lg-pw" type={show ? 'text' : 'password'} required autoComplete="current-password" value={password}
               onChange={(e) => { setPassword(e.target.value); setError('') }} className={`${inputCls} pr-[120px]`} />
             <button type="button" onClick={() => setShow(!show)} aria-pressed={show}
-              className="absolute right-1 top-1/2 min-h-[40px] -translate-y-1/2 rounded-full px-3.5 text-sm font-bold text-accent-700 hover:bg-accent-200">
+              className="absolute right-1 top-1/2 min-h-[44px] -translate-y-1/2 rounded-full px-3.5 text-sm font-bold text-accent-700 hover:bg-accent-200">
               {show ? 'Sembunyikan' : 'Lihat'}
             </button>
           </div>

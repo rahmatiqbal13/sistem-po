@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Check, MessageCircle, Minus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CaraTerima } from '@/lib/types'
 import { errMsg, rupiah, tanggal } from '@/lib/format'
 import { fotoUrl } from '@/lib/foto'
-import { Alert, Button, Field, ICON, ProductPhoto, cx } from '@/components/ui'
+import { Alert, Button, Field, ICON, ProductPhoto, cx, useDialogFocus } from '@/components/ui'
 
 interface PublicProduct { id: string; nama: string; harga: number; foto_path: string | null; sisa: number | null }
 interface PublicBatch {
@@ -36,6 +36,8 @@ export default function PemesananPage() {
   const [review, setReview] = useState(false)
   const [busy, setBusy] = useState(false)
   const [hasil, setHasil] = useState<{ data: Hasil; cara: CaraTerima } | null>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(sheetRef, review)
 
   async function load() {
     const { data, error } = await createClient().rpc('get_public_batch', { p_slug: slug })
@@ -44,6 +46,7 @@ export default function PemesananPage() {
   }
 
   useEffect(() => { load() }, [slug]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (batch) document.title = `${batch.nama} · ${batch.nama_toko}` }, [batch])
 
   useEffect(() => {
     if (!review) return
@@ -85,9 +88,15 @@ export default function PemesananPage() {
 
   function pesan() {
     setError('')
-    if (Object.values(errs).some(Boolean)) {
+    // Arahkan ke masalah pertama: bagian produk, atau kolom isian yang belum benar
+    const firstId = errs.items ? 'pilih-produk' : errs.nama ? 'f-nama' : errs.wa ? 'f-wa' : errs.alamat ? 'f-alamat' : ''
+    if (firstId) {
       setTouched(true)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      requestAnimationFrame(() => {
+        const el = document.getElementById(firstId)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el?.focus({ preventScroll: true })
+      })
       return
     }
     setReview(true)
@@ -148,7 +157,7 @@ export default function PemesananPage() {
             {error && <Alert>{error}</Alert>}
 
             <section className="flex flex-col gap-3">
-              <h2>1. Pilih produk</h2>
+              <h2 id="pilih-produk" tabIndex={-1}>1. Pilih produk</h2>
               {err.items && <div role="alert" className="rounded-full bg-accent-700 px-4 py-3 font-bold text-accent-100">{err.items}</div>}
               {batch.produk.length === 0 && <p className="m-0 text-neutral-800">Belum ada produk di PO ini.</p>}
               {batch.produk.map((p) => {
@@ -156,8 +165,8 @@ export default function PemesananPage() {
                 const habis = p.sisa === 0
                 const maxed = habis || (p.sisa !== null && n >= p.sisa) || n >= 50
                 return (
-                  <div key={p.id} className={cx('flex flex-col gap-3 rounded-card bg-surface py-3 pl-3 pr-4 outline-2 -outline-offset-2',
-                    n > 0 ? 'outline-accent' : 'outline-transparent', habis && 'opacity-60')}>
+                  <div key={p.id} className={cx('flex flex-col gap-3 rounded-card py-3 pl-3 pr-4 outline-2 -outline-offset-2',
+                    n > 0 ? 'outline-accent' : 'outline-transparent', habis ? 'bg-neutral-200' : 'bg-surface')}>
                     <div className="flex items-center gap-3">
                       <ProductPhoto url={fotoUrl(p.foto_path)} size={88} alt={p.nama} />
                       <div className="flex min-w-0 flex-1 flex-col">
@@ -195,11 +204,11 @@ export default function PemesananPage() {
 
             <section className="flex flex-col gap-4">
               <h2>2. Data pemesan</h2>
-              <Field label="Nama" htmlFor="f-nama" error={err.nama}>
+              <Field label="Nama" htmlFor="f-nama" error={err.nama} required>
                 <input id="f-nama" value={nama} maxLength={80} autoComplete="name" aria-invalid={!!err.nama}
                   onChange={(e) => setNama(e.target.value)} className="input min-h-[48px]" />
               </Field>
-              <Field label="Nomor WhatsApp" htmlFor="f-wa" helper="Untuk konfirmasi pesanan. Contoh: 0812 3456 7890" error={err.wa}>
+              <Field label="Nomor WhatsApp" htmlFor="f-wa" helper="Untuk konfirmasi pesanan. Contoh: 0812 3456 7890" error={err.wa} required>
                 <input id="f-wa" value={wa} inputMode="tel" autoComplete="tel" aria-invalid={!!err.wa}
                   onChange={(e) => setWa(e.target.value)} className="input min-h-[48px]" />
               </Field>
@@ -210,14 +219,14 @@ export default function PemesananPage() {
                   {(Object.keys(CARA) as CaraTerima[]).map((c) => (
                     <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
                       className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
-                        cara === c ? 'border-accent bg-accent text-bg' : 'border-divider bg-surface text-ink')}>
+                        cara === c ? 'border-accent bg-accent text-ink' : 'border-divider bg-surface text-ink')}>
                       {CARA[c]}
                     </button>
                   ))}
                 </div>
               </div>
               {cara !== 'pickup' && (
-                <Field label="Alamat lengkap" htmlFor="f-alamat" helper="Ongkir akan dikonfirmasi penjual lewat WhatsApp." error={err.alamat}>
+                <Field label="Alamat lengkap" htmlFor="f-alamat" helper="Ongkir akan dikonfirmasi penjual lewat WhatsApp." error={err.alamat} required>
                   <textarea id="f-alamat" rows={3} maxLength={300} value={alamat} aria-invalid={!!err.alamat}
                     onChange={(e) => setAlamat(e.target.value)} className="input" />
                 </Field>
@@ -246,7 +255,7 @@ export default function PemesananPage() {
       {/* Periksa pesanan (bottom sheet) */}
       {review && (
         <div className="dialog-backdrop place-items-[end_center] p-0" onClick={() => !busy && setReview(false)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="rv-t" onClick={(e) => e.stopPropagation()}
+          <div ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="rv-t" onClick={(e) => e.stopPropagation()}
             className="dialog max-h-[92dvh] w-[min(640px,100%)] overflow-y-auto rounded-b-none pb-[calc(26.4px+env(safe-area-inset-bottom))]">
             <div aria-hidden="true" className="h-[5px] w-[44px] self-center rounded-full bg-neutral-400" />
             <div>

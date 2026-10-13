@@ -6,7 +6,7 @@ const caprasimo = Caprasimo({ variable: "--font-caprasimo", weight: "400", subse
 const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PO Jajanan",
+  title: { default: "PO Jajanan", template: "%s · PO Jajanan" },
   description: "Pencatatan pre-order jajanan",
   appleWebApp: { capable: true, title: "PO Jajanan", statusBarStyle: "default" },
 };

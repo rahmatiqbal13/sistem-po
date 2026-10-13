@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function Logo({ size }: { size: 'sm' | 'md' }) {
   return (
-    <div aria-hidden="true" className={cx('grid shrink-0 place-items-center rounded-full bg-accent font-heading text-bg',
+    <div aria-hidden="true" className={cx('grid shrink-0 place-items-center rounded-full bg-accent font-heading text-ink',
       size === 'md' ? 'size-[38px] text-lg' : 'size-[34px] text-[17px]')}>P</div>
   )
 }
@@ -89,7 +89,7 @@ function Shell({ children }: { children: ReactNode }) {
         </Link>
         <div className="flex flex-col gap-1 rounded-lg bg-neutral-100 px-4 py-3">
           <div className="truncate text-sm text-neutral-800" title={email ?? ''}>{email}</div>
-          <button type="button" onClick={logout} className="btn btn-ghost min-h-[40px] justify-start px-0 text-[15px]">
+          <button type="button" onClick={logout} className="btn btn-ghost min-h-[44px] justify-start px-0 text-[15px]">
             <LogOut size={16} {...ICON} />Keluar
           </button>
         </div>

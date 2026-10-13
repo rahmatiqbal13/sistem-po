@@ -32,6 +32,7 @@ export default function BatchPage() {
   const { batches, batchId, setBatchId, reload, loading } = useBatch()
   const [editing, setEditing] = useState<Partial<Batch> | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [copyFail, setCopyFail] = useState<string | null>(null)
   const [kuota, setKuota] = useState<Record<string, KuotaRow[]>>({})
 
   // Pemakaian kuota per batch (pesanan Dibatalkan tidak dihitung)
@@ -73,7 +74,7 @@ export default function BatchPage() {
       await navigator.clipboard.writeText(linkPemesanan(b.slug))
       setCopied(b.id)
       setTimeout(() => setCopied(null), 1800)
-    } catch { window.prompt('Salin link ini:', linkPemesanan(b.slug)) }
+    } catch { setCopyFail(b.id) }
   }
 
   function shareWa(b: Batch) {
@@ -134,25 +135,26 @@ export default function BatchPage() {
 
                 <div className="flex flex-col gap-2 rounded-lg bg-sage-200 px-4 py-3 text-sage-900">
                   <div className="text-sm font-bold">Link pemesanan</div>
-                  <div className="break-all text-[15px]">/po/{b.slug}</div>
+                  <div className="break-all text-[15px]">{copyFail === b.id ? linkPemesanan(b.slug) : `/po/${b.slug}`}</div>
+                  {copyFail === b.id && <div role="status" className="text-sm font-semibold">Gagal menyalin otomatis. Tahan teks link di atas untuk menyalin.</div>}
                   {b.status !== 'buka' && <div className="text-sm">Link menerima pesanan hanya saat status Buka.</div>}
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" className="min-h-[40px] border-sage-500" onClick={() => copy(b)}>
+                    <Button variant="secondary" className="min-h-[44px] border-sage-500" onClick={() => copy(b)}>
                       <Copy size={16} {...ICON} />{copied === b.id ? 'Tersalin' : 'Salin link'}
                     </Button>
-                    <Button variant="secondary" className="min-h-[40px] border-sage-500" onClick={() => shareWa(b)}>
+                    <Button variant="secondary" className="min-h-[44px] border-sage-500" onClick={() => shareWa(b)}>
                       <Share2 size={16} {...ICON} />Bagikan ke WA
                     </Button>
-                    <a href={`/po/${b.slug}`} target="_blank" rel="noopener" className="btn btn-ghost min-h-[40px] text-sage-800 hover:text-sage-800">
+                    <a href={`/po/${b.slug}`} target="_blank" rel="noopener" className="btn btn-ghost min-h-[44px] text-sage-800 hover:text-sage-800">
                       <ExternalLink size={16} {...ICON} />Buka
                     </a>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" className="min-h-[40px]" onClick={() => { setBatchId(b.id); router.push('/pesanan') }}>Lihat pesanan</Button>
-                  <Button variant="secondary" className="min-h-[40px]" onClick={() => setEditing(b)}>Edit</Button>
-                  {next && <Button variant="ghost" className="min-h-[40px]" onClick={() => advance(b)}>{next.label}</Button>}
+                  <Button variant="secondary" className="min-h-[44px]" onClick={() => { setBatchId(b.id); router.push('/pesanan') }}>Lihat pesanan</Button>
+                  <Button variant="secondary" className="min-h-[44px]" onClick={() => setEditing(b)}>Edit</Button>
+                  {next && <Button variant="ghost" className="min-h-[44px]" onClick={() => advance(b)}>{next.label}</Button>}
                 </div>
               </div>
             )
@@ -242,7 +244,7 @@ function BatchForm({ batch, onClose, onSaved }: { batch: Partial<Batch>; onClose
     <Modal open onClose={onClose} title={batch.id ? 'Edit batch' : 'Buat batch'} width={580}>
       <form onSubmit={save} className="flex flex-col gap-4">
         {error && <Alert>{error}</Alert>}
-        <Field label="Nama batch" htmlFor="bf-nama" helper="Contoh: PO Kebab Minggu ke-2 Oktober">
+        <Field label="Nama batch" htmlFor="bf-nama" helper="Contoh: PO Kebab Minggu ke-2 Oktober" required>
           <input id="bf-nama" autoFocus value={form.nama} onChange={set('nama')} className={inputCls} />
         </Field>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">

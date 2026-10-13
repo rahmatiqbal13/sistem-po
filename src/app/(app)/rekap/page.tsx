@@ -10,7 +10,7 @@ import { exportRekap } from '@/lib/export'
 import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
-import { Alert, BayarBadge, Button, Empty, ICON, Loading, OrderStatusBadge, PageHeader, Pager, cx, paginate } from '@/components/ui'
+import { Alert, BayarBadge, Button, Empty, ICON, Loading, OrderStatusBadge, PageHeader, Pager, cx, paginate, useConfirm } from '@/components/ui'
 
 const CARA_URUT: Record<CaraTerima, number> = { pickup: 0, antar: 1, kurir: 2 }
 
@@ -22,6 +22,7 @@ export default function RekapPage() {
   const [hideDone, setHideDone] = useState(false)
   const [per, setPer] = useState(10)
   const [pageState, setPageState] = useState({ key: '', n: 1 })
+  const [confirm, confirmDialog] = useConfirm()
 
   const load = useCallback(async () => {
     if (!batchId) return
@@ -101,7 +102,7 @@ export default function RekapPage() {
             {/* Rekap produksi */}
             <section className="flex min-w-0 flex-[3_1_420px] flex-col gap-4 rounded-card bg-surface p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3>Rekap produksi</h3>
+                <h2 className="text-[25px]">Rekap produksi</h2>
                 <span className="text-sm text-neutral-800">Total <b className="text-[22px] text-ink">{totalQty}</b> pcs</span>
               </div>
               {rekap.length === 0 ? <p className="m-0 text-neutral-800">Belum ada item.</p> : (
@@ -118,17 +119,17 @@ export default function RekapPage() {
               <p className="m-0 text-sm text-neutral-800">Pesanan Dibatalkan tidak dihitung.</p>
               {rekap.length > 0 && (
                 <div className="no-print flex flex-wrap gap-2">
-                  <Button variant="secondary" className="min-h-[40px]" onClick={copyRekap}><Copy size={16} {...ICON} />{copied ? 'Tersalin' : 'Salin'}</Button>
-                  <Button variant="secondary" className="min-h-[40px]" onClick={() => window.print()}><Printer size={16} {...ICON} />Cetak</Button>
-                  <Button variant="secondary" className="min-h-[40px]" onClick={() => exportRekap(rekap, `rekap-${batch.nama}`, 'xlsx')}><Download size={16} {...ICON} />Excel</Button>
-                  <Button variant="ghost" className="min-h-[40px]" onClick={() => exportRekap(rekap, `rekap-${batch.nama}`, 'csv')}>CSV</Button>
+                  <Button variant="secondary" className="min-h-[44px]" onClick={copyRekap}><Copy size={16} {...ICON} />{copied ? 'Tersalin' : 'Salin'}</Button>
+                  <Button variant="secondary" className="min-h-[44px]" onClick={() => window.print()}><Printer size={16} {...ICON} />Cetak</Button>
+                  <Button variant="secondary" className="min-h-[44px]" onClick={() => exportRekap(rekap, `rekap-${batch.nama}`, 'xlsx')}><Download size={16} {...ICON} />Excel</Button>
+                  <Button variant="ghost" className="min-h-[44px]" onClick={() => exportRekap(rekap, `rekap-${batch.nama}`, 'csv')}>CSV</Button>
                 </div>
               )}
             </section>
 
             {/* Ringkasan keuangan */}
             <section className="flex min-w-0 flex-[2_1_300px] flex-col gap-4 rounded-card bg-sage-700 p-6 text-sage-100">
-              <h3>Ringkasan keuangan</h3>
+              <h2 className="text-[25px]">Ringkasan keuangan</h2>
               <dl className="m-0 flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-2"><dt>Total pesanan ({sum.jumlah})</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.total)}</dd></div>
                 <div className="flex items-baseline justify-between gap-2"><dt>Total terbayar</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.terbayar)}</dd></div>
@@ -157,7 +158,7 @@ export default function RekapPage() {
             </div>
             {list.length === 0 ? <Empty title="Tidak ada pesanan" /> : groups.map((g) => (
               <div key={g.tanggal} className="flex flex-col gap-3">
-                <h4 className="mt-2">{g.tanggal ? tanggal(g.tanggal, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Tanpa tanggal'}</h4>
+                <h3 className="mt-2 text-xl">{g.tanggal ? tanggal(g.tanggal, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Tanpa tanggal'}</h3>
                 {g.cara.map((c) => (
                   <div key={c.cara} className="rounded-card bg-surface px-6 pb-2 pt-3">
                     <div className="flex items-center gap-2 pb-2 pt-1 font-bold">
@@ -167,7 +168,7 @@ export default function RekapPage() {
                       const done = o.status === 'selesai'
                       const sisa = Number(o.sisa)
                       return (
-                        <div key={o.id} className={cx('flex flex-wrap items-start gap-3 border-t border-divider py-3', done && 'opacity-55')}>
+                        <div key={o.id} className={cx('flex flex-wrap items-start gap-3 border-t border-divider py-3', done && 'text-neutral-800')}>
                           <div className="min-w-0 flex-[1_1_260px]">
                             <div className="flex flex-wrap items-center gap-2">
                               {o.jam_ambil && <span className="font-bold text-accent-700">{jam(o.jam_ambil)}</span>}
@@ -184,12 +185,12 @@ export default function RekapPage() {
                           {!done && (
                             <div className="no-print flex w-full flex-wrap justify-end gap-2">
                               {sisa > 0 && (
-                                <Button variant="secondary" className="min-h-[40px]"
-                                  onClick={() => window.confirm(`Catat tunai ${rupiah(sisa)} dan tandai Selesai?`) && act(() => terimaTunaiSelesai(o))}>
+                                <Button variant="secondary" className="min-h-[44px]"
+                                  onClick={async () => (await confirm({ title: `Terima tunai ${rupiah(sisa)}?`, confirmLabel: 'Catat & selesai', body: `Pembayaran tunai untuk ${o.customer_nama} dicatat, lalu pesanan ditandai Selesai.` })) && act(() => terimaTunaiSelesai(o))}>
                                   Terima tunai &amp; selesai
                                 </Button>
                               )}
-                              <Button variant={sisa > 0 ? 'ghost' : 'primary'} className="min-h-[40px]"
+                              <Button variant={sisa > 0 ? 'ghost' : 'primary'} className="min-h-[44px]"
                                 onClick={() => act(() => setOrderStatus(o.id, 'selesai', o.updated_at))}>
                                 Tandai selesai
                               </Button>
@@ -209,6 +210,7 @@ export default function RekapPage() {
           </section>
         </>
       )}
+      {confirmDialog}
     </div>
   )
 }
