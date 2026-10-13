@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-react'
+import { Download, Search } from 'lucide-react'
 import type { CaraTerima, OrderStatus, OrderSummary } from '@/lib/types'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
 import { fetchBatchItems, fetchBatchOrders, rekapProduksi, ringkasan, type ItemWithOrder } from '@/lib/data'
@@ -11,11 +11,12 @@ import { exportOrders } from '@/lib/export'
 import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
-import { Alert, BayarBadge, Button, Card, Chip, Empty, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, cx, inputCls, kodePesanan } from '@/components/ui'
+import {
+  Alert, BayarBadge, Button, Chip, Empty, ICON, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, Pager, cx, paginate,
+} from '@/components/ui'
 
 type BayarFilter = '' | 'belum' | 'dp' | 'lunas' | 'belum_lunas'
 const BAYAR_LABEL: Record<Exclude<BayarFilter, ''>, string> = { ...STATUS_BAYAR, belum_lunas: 'Belum lunas' }
-const PER_PAGE = 20
 
 export default function PesananPage() {
   const router = useRouter()
@@ -26,6 +27,7 @@ export default function PesananPage() {
   const [bayar, setBayar] = useState<BayarFilter>('')
   const [status, setStatus] = useState<OrderStatus | ''>('')
   const [cara, setCara] = useState<CaraTerima | ''>('')
+  const [per, setPer] = useState(10)
   const [pageState, setPageState] = useState({ key: '', n: 1 })
 
   const load = useCallback(async () => {
@@ -68,199 +70,211 @@ export default function PesananPage() {
     return new Set([...count].filter(([, n]) => n > 1).map(([id]) => id))
   }, [orders])
   const linkBaru = (orders ?? []).filter((o) => o.sumber === 'link' && o.status === 'baru').length
-  const pages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  // Halaman kembali ke 1 setiap kali filter atau batch berubah
-  const filterKey = [batchId, q, bayar, status, cara].join('|')
-  const page = pageState.key === filterKey ? Math.min(pageState.n, pages) : 1
+
+  // Halaman kembali ke 1 setiap kali filter, batch atau jumlah per halaman berubah
+  const filterKey = [batchId, q, bayar, status, cara, per].join('|')
+  const pg = paginate(filtered, pageState.key === filterKey ? pageState.n : 1, per)
   const setPage = (n: number) => setPageState({ key: filterKey, n })
-  const shown = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const hasFilter = q || bayar || status || cara
+
+  const hasFilter = !!(q || bayar || status || cara)
   const reset = () => { setQ(''); setBayar(''); setStatus(''); setCara('') }
+  const onlyBayar = (v: BayarFilter) => () => { reset(); setBayar(v) }
 
   if (batchLoading) return <Loading />
   if (!batch) {
     return (
       <>
         <PageHeader title="Pesanan" />
-        <Empty>
-          Belum ada batch PO.<br />
-          <LinkButton href="/batch" className="mt-4">Buat batch pertama</LinkButton>
+        <Empty title="Belum ada batch PO" action={<LinkButton href="/batch" className="px-5">Buat batch pertama</LinkButton>}>
+          Buat batch dulu, lalu pesanan bisa dicatat ke batch itu.
         </Empty>
       </>
     )
   }
 
   const cards = [
-    { label: 'Total pesanan', value: rupiah(sum.total), sub: `${sum.jumlah} pesanan aktif`, onClick: reset, active: !hasFilter },
-    { label: 'Terbayar', value: rupiah(sum.terbayar), sub: `${sum.lunas} lunas`, onClick: () => { reset(); setBayar('lunas') }, active: bayar === 'lunas' },
-    { label: 'Belum terbayar', value: rupiah(sum.sisa), sub: `${sum.dp} DP · ${sum.belum} belum bayar`, onClick: () => { reset(); setBayar('belum_lunas') }, active: bayar === 'belum_lunas', tone: sum.sisa > 0 ? 'text-bad' : '' },
-    { label: 'Pesanan belum lunas', value: String(sum.dp + sum.belum), sub: 'DP + belum bayar', onClick: () => { reset(); setBayar('belum_lunas') }, active: bayar === 'belum_lunas' },
+    { label: 'Total pesanan', value: rupiah(sum.total), sub: `${sum.jumlah} pesanan aktif`, onClick: reset, active: !hasFilter, tone: '' },
+    { label: 'Terbayar', value: rupiah(sum.terbayar), sub: `${sum.lunas} lunas`, onClick: onlyBayar('lunas'), active: bayar === 'lunas', tone: 'text-sage-700' },
+    { label: 'Belum terbayar', value: rupiah(sum.sisa), sub: `${sum.dp} DP · ${sum.belum} belum bayar`, onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: sum.sisa > 0 ? 'text-accent-700' : '' },
+    { label: 'Pesanan belum lunas', value: String(sum.dp + sum.belum), sub: 'DP + belum bayar', onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: '' },
   ]
 
   return (
     <>
-      <PageHeader title="Pesanan" subtitle={<>Ambil/produksi {tanggal(batch.tanggal_ambil)}</>}
-        action={<div className="w-full md:w-auto"><BatchPicker /></div>} />
+      <PageHeader title="Pesanan" kicker={batch.nama} subtitle={<>Ambil/produksi {tanggal(batch.tanggal_ambil)}</>}
+        action={<BatchPicker />} />
 
-      {error && <div className="mb-4"><Alert tone="bad">{error}</Alert></div>}
-      {linkBaru > 0 && status !== 'baru' && (
-        <button type="button" onClick={() => { setQ(''); setBayar(''); setCara(''); setStatus('baru') }}
-          className="mb-4 flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl bg-accent-soft px-4 text-left font-semibold text-accent">
-          <span>{linkBaru} pesanan baru dari link menunggu dikonfirmasi</span><span aria-hidden>→</span>
-        </button>
-      )}
+      {error && <Alert>{error}</Alert>}
 
-      {/* 1. Kartu ringkasan */}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Kartu ringkasan: klik untuk memfilter daftar */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 md:grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
         {cards.map((c) => (
-          <button key={c.label} type="button" onClick={c.onClick}
-            className={cx('rounded-2xl border bg-surface p-4 text-left transition-colors hover:border-accent',
-              c.active ? 'border-accent' : 'border-line')}>
-            <div className="text-sm font-medium text-muted">{c.label}</div>
-            <div className={cx('num mt-1 text-xl font-bold md:text-[28px] md:leading-9', c.tone)}>{c.value}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.sub}</div>
+          <button key={c.label} type="button" onClick={c.onClick} aria-pressed={c.active}
+            className={cx('flex flex-col gap-0.5 rounded-card border-2 p-4 text-left md:pl-6',
+              c.active ? 'border-accent bg-accent-100' : 'border-transparent bg-surface hover:bg-accent-100')}>
+            <span className="text-sm font-semibold text-neutral-800">{c.label}</span>
+            <span className={cx('whitespace-nowrap text-xl font-bold leading-tight md:text-[26px]', c.tone)}>{c.value}</span>
+            <span className="text-sm text-neutral-800">{c.sub}</span>
           </button>
         ))}
       </div>
 
-      {/* 2. Rekap produksi singkat */}
-      <Card className="mb-5 p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-bold">Rekap produksi</h2>
-          <Link href="/rekap" className="text-sm font-semibold text-accent">Lihat rekap lengkap →</Link>
-        </div>
-        {rekap.length === 0 ? <p className="text-muted">Belum ada item.</p> : (
+      {linkBaru > 0 && status !== 'baru' && (
+        <button type="button" onClick={() => { reset(); setStatus('baru') }}
+          className="flex items-center gap-3 rounded-full bg-accent-200 py-3 pl-3 pr-6 text-left text-base font-bold text-accent-900 hover:bg-accent-300">
+          <span className="grid size-[40px] shrink-0 place-items-center rounded-full bg-accent-700 text-[17px] text-accent-100">{linkBaru}</span>
+          <span className="flex-1">pesanan baru dari link menunggu dikonfirmasi</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
+
+      {/* Rekap produksi singkat */}
+      {rekap.length > 0 && (
+        <section className="flex flex-col gap-3 rounded-card bg-sage-200 px-6 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="text-sage-900">Rekap produksi</h4>
+            <Link href="/rekap" className="btn btn-ghost text-sage-800 hover:text-sage-800">Lihat rekap lengkap →</Link>
+          </div>
           <div className="flex flex-wrap gap-2">
             {rekap.map((r) => (
-              <span key={r.nama} className="rounded-xl bg-surface-2 px-3 py-1.5">
-                {r.nama} <b className="num">×{r.qty}</b>
+              <span key={r.nama} className="inline-flex items-center gap-2 rounded-full bg-sage-100 py-1 pl-3.5 pr-1.5 text-sm text-sage-900">
+                {r.nama}
+                <b className="inline-grid h-[28px] min-w-[28px] place-items-center rounded-full bg-sage-700 px-1.5 text-sm text-sage-100">{r.qty}</b>
               </span>
             ))}
           </div>
-        )}
-      </Card>
+        </section>
+      )}
 
-      {/* 3. Filter */}
-      <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-        <label className="relative block">
-          <span className="sr-only">Cari nama atau nomor WA</span>
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau nomor WA" className={cx(inputCls, 'pl-10')} />
-        </label>
-        <div className="grid grid-cols-3 gap-2 md:contents">
-          <select aria-label="Status bayar" value={bayar} onChange={(e) => setBayar(e.target.value as BayarFilter)} className={inputCls}>
+      {/* Filter */}
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
+          <label className="relative col-span-full block">
+            <span className="sr-only">Cari nama atau nomor WA</span>
+            <Search size={18} {...ICON} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-800" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau nomor WA" className="input min-h-[44px] pl-[42px]" />
+          </label>
+          <select aria-label="Status bayar" value={bayar} onChange={(e) => setBayar(e.target.value as BayarFilter)} className="input min-h-[44px]">
             <option value="">Status bayar</option>
             {Object.entries(BAYAR_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <select aria-label="Status pesanan" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className={inputCls}>
+          <select aria-label="Status pesanan" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="input min-h-[44px]">
             <option value="">Status pesanan</option>
             {Object.entries(ORDER_STATUS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <select aria-label="Cara terima" value={cara} onChange={(e) => setCara(e.target.value as CaraTerima)} className={inputCls}>
+          <select aria-label="Cara terima" value={cara} onChange={(e) => setCara(e.target.value as CaraTerima)} className="input min-h-[44px]">
             <option value="">Cara terima</option>
             {Object.entries(CARA_TERIMA).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
+        {hasFilter && (
+          <div className="flex flex-wrap items-center gap-2">
+            {q && <Chip label={`“${q}”`} onRemove={() => setQ('')}>“{q}”</Chip>}
+            {bayar && <Chip label={BAYAR_LABEL[bayar]} onRemove={() => setBayar('')}>{BAYAR_LABEL[bayar]}</Chip>}
+            {status && <Chip label={ORDER_STATUS[status]} onRemove={() => setStatus('')}>{ORDER_STATUS[status]}</Chip>}
+            {cara && <Chip label={CARA_TERIMA[cara]} onRemove={() => setCara('')}>{CARA_TERIMA[cara]}</Chip>}
+            <button type="button" onClick={reset} className="btn btn-ghost">Reset filter</button>
+          </div>
+        )}
       </div>
 
-      {hasFilter && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {q && <Chip onRemove={() => setQ('')}>“{q}”</Chip>}
-          {bayar && <Chip onRemove={() => setBayar('')}>{BAYAR_LABEL[bayar]}</Chip>}
-          {status && <Chip onRemove={() => setStatus('')}>{ORDER_STATUS[status]}</Chip>}
-          {cara && <Chip onRemove={() => setCara('')}>{CARA_TERIMA[cara]}</Chip>}
-          <button type="button" onClick={reset} className="min-h-9 px-2 text-sm font-semibold text-accent">Reset filter</button>
-        </div>
-      )}
-
-      {/* 4. Daftar */}
+      {/* Daftar */}
       {!orders ? <Loading /> : filtered.length === 0 ? (
-        <Empty>{orders.length === 0 ? 'Belum ada pesanan di batch ini.' : 'Tidak ada pesanan yang cocok dengan filter.'}</Empty>
+        orders.length === 0
+          ? <Empty title="Belum ada pesanan di batch ini" action={<LinkButton href="/pesanan/baru" className="px-5">+ Pesanan baru</LinkButton>}>
+              Catat pesanan dari chat, atau bagikan link pemesanan batch ini ke pembeli.
+            </Empty>
+          : <Empty title="Tidak ada pesanan yang cocok" action={<Button onClick={reset} className="px-5">Reset filter</Button>}>
+              Coba kata kunci lain, atau hapus sebagian filter di atas.
+            </Empty>
       ) : (
         <>
           {/* HP: kartu */}
-          <div className="space-y-2 md:hidden">
-            {shown.map((o) => (
-              <Link key={o.id} href={`/pesanan/${o.id}`} className={cx('block rounded-2xl border border-line bg-surface p-4', o.status === 'dibatalkan' && 'opacity-60')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold">{o.customer_nama}</div>
-                    <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
-                    <div className="text-sm text-muted">
-                      {CARA_TERIMA[o.cara_terima]} · {tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })}{o.jam_ambil ? ` ${jam(o.jam_ambil)}` : ''}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 md:hidden">
+            {pg.shown.map((o) => {
+              const batal = o.status === 'dibatalkan'
+              return (
+                <Link key={o.id} href={`/pesanan/${o.id}`}
+                  className={cx('flex flex-col gap-3 rounded-card bg-surface py-4 pl-6 pr-4 text-ink no-underline hover:bg-accent-100 hover:text-ink', batal && 'opacity-55')}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[19px] font-bold leading-tight">{o.customer_nama}</div>
+                      <div className="my-1"><OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} /></div>
+                      <div className="text-sm text-neutral-800">
+                        {CARA_TERIMA[o.cara_terima]} · {tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}
+                      </div>
+                    </div>
+                    <BayarBadge status={o.status_bayar} dibatalkan={batal} />
+                  </div>
+                  <div className="flex items-end justify-between gap-2">
+                    <OrderStatusBadge status={o.status} className="bg-neutral-200" />
+                    <div className="text-right">
+                      <div className="font-bold">{rupiah(o.total)}</div>
+                      {!batal && Number(o.sisa) > 0 && <div className="text-sm text-accent-700">sisa {rupiah(o.sisa)}</div>}
                     </div>
                   </div>
-                  <BayarBadge status={o.status_bayar} dibatalkan={o.status === 'dibatalkan'} />
-                </div>
-                <div className="mt-3 flex items-end justify-between gap-3">
-                  <OrderStatusBadge status={o.status} />
-                  <div className="text-right">
-                    <div className="num font-bold">{rupiah(o.total)}</div>
-                    {Number(o.sisa) > 0 && o.status !== 'dibatalkan' && <div className="num text-sm text-bad">sisa {rupiah(o.sisa)}</div>}
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              )
+            })}
           </div>
 
           {/* Desktop: tabel */}
-          <Card className="hidden overflow-x-auto md:block">
-            <table className="w-full text-left">
-              <thead className="border-b border-line text-sm text-muted">
+          <div className="hidden overflow-x-auto rounded-card bg-surface px-3 py-2 md:block">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="sticky left-0 bg-surface px-4 py-3 font-semibold">Pembeli</th>
-                  <th className="px-4 py-3 font-semibold">Ambil</th>
-                  <th className="px-4 py-3 font-semibold">Cara terima</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 text-right font-semibold">Total</th>
-                  <th className="px-4 py-3 text-right font-semibold">Sisa</th>
-                  <th className="px-4 py-3 font-semibold">Bayar</th>
+                  <th className="min-w-[190px]">Pembeli</th>
+                  <th>Ambil</th>
+                  <th>Cara terima</th>
+                  <th>Status</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Sisa</th>
+                  <th>Bayar</th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((o) => (
-                  <tr key={o.id} onClick={() => router.push(`/pesanan/${o.id}`)}
-                    className={cx('cursor-pointer border-b border-line last:border-0 even:bg-surface-2/50 hover:bg-accent-soft', o.status === 'dibatalkan' && 'text-muted')}>
-                    <td className="sticky left-0 bg-inherit px-4 py-3">
-                      <Link href={`/pesanan/${o.id}`} className="font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>{o.customer_nama}</Link>
-                      <div className="text-sm text-muted">{o.customer_wa} · {kodePesanan(o.id)}</div>
-                      <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">{tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{CARA_TERIMA[o.cara_terima]}</td>
-                    <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
-                    <td className="num whitespace-nowrap px-4 py-3 text-right font-semibold">{rupiah(o.total)}</td>
-                    <td className={cx('num whitespace-nowrap px-4 py-3 text-right', Number(o.sisa) > 0 && o.status !== 'dibatalkan' && 'text-bad')}>
-                      {o.status === 'dibatalkan' ? '—' : rupiah(o.sisa)}
-                    </td>
-                    <td className="px-4 py-3"><BayarBadge status={o.status_bayar} dibatalkan={o.status === 'dibatalkan'} /></td>
-                  </tr>
-                ))}
+                {pg.shown.map((o) => {
+                  const batal = o.status === 'dibatalkan'
+                  const open = () => router.push(`/pesanan/${o.id}`)
+                  return (
+                    <tr key={o.id} tabIndex={0} aria-label={`Buka pesanan ${o.customer_nama}`} onClick={open}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }}
+                      className={cx('cursor-pointer', batal && 'opacity-55')}>
+                      <td>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold">{o.customer_nama}</span>
+                          <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
+                        </div>
+                        <div className="whitespace-nowrap text-sm text-neutral-800">{o.customer_wa}</div>
+                      </td>
+                      <td className="whitespace-nowrap">{tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}</td>
+                      <td className="whitespace-nowrap">{CARA_TERIMA[o.cara_terima]}</td>
+                      <td><OrderStatusBadge status={o.status} /></td>
+                      <td className="whitespace-nowrap text-right font-bold">{rupiah(o.total)}</td>
+                      <td className={cx('whitespace-nowrap text-right', !batal && Number(o.sisa) > 0 ? 'text-accent-700' : 'text-neutral-800')}>
+                        {batal ? '—' : rupiah(o.sisa)}
+                      </td>
+                      <td><BayarBadge status={o.status_bayar} dibatalkan={batal} /></td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
-          </Card>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-muted">
-              {filtered.length} pesanan{pages > 1 && ` · menampilkan ${(page - 1) * PER_PAGE + 1}–${Math.min(page * PER_PAGE, filtered.length)}`}
-            </div>
-            {pages > 1 && (
-              <div className="flex items-center gap-1">
-                <Button variant="secondary" disabled={page === 1} onClick={() => setPage(page - 1)} aria-label="Halaman sebelumnya"><ChevronLeft size={18} /></Button>
-                <span className="num px-2 text-sm">{page} / {pages}</span>
-                <Button variant="secondary" disabled={page === pages} onClick={() => setPage(page + 1)} aria-label="Halaman berikutnya"><ChevronRight size={18} /></Button>
-              </div>
-            )}
           </div>
+
+          <Pager page={pg.page} pages={pg.pages} per={per} onPage={setPage} onPer={setPer} />
         </>
       )}
 
       {orders && orders.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'xlsx')}>
-            <Download size={18} aria-hidden />Ekspor Excel ({filtered.length})
-          </Button>
-          <Button variant="ghost" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'csv')}>Ekspor CSV</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-[15px] text-neutral-800">{filtered.length ? `${pg.info} pesanan` : '0 pesanan'}</div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" className="min-h-[42px]" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'xlsx')}>
+              <Download size={18} {...ICON} />Ekspor Excel ({filtered.length})
+            </Button>
+            <Button variant="ghost" className="min-h-[42px] px-3.5" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'csv')}>Ekspor CSV</Button>
+          </div>
         </div>
       )}
     </>

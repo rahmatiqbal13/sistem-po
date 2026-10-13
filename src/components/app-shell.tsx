@@ -7,7 +7,7 @@ import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus, Setting
 import { createClient } from '@/lib/supabase/client'
 import { BATCH_STATUS } from '@/lib/types'
 import { BatchProvider, useBatch } from './batch-context'
-import { cx } from './ui'
+import { ICON, cx } from './ui'
 
 const NAV = [
   { href: '/pesanan', label: 'Pesanan', Icon: ClipboardList },
@@ -24,12 +24,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   )
 }
 
+function Logo({ size }: { size: 'sm' | 'md' }) {
+  return (
+    <div aria-hidden="true" className={cx('grid shrink-0 place-items-center rounded-full bg-accent font-heading text-bg',
+      size === 'md' ? 'size-[38px] text-lg' : 'size-[34px] text-[17px]')}>P</div>
+  )
+}
+
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { email } = useBatch()
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
   const onForm = pathname.startsWith('/pesanan/baru') || pathname.endsWith('/edit')
+  const onDetail = /^\/pesanan\/[^/]+$/.test(pathname) && !onForm
 
   async function logout() {
     await createClient().auth.signOut()
@@ -37,62 +45,86 @@ function Shell({ children }: { children: ReactNode }) {
     router.refresh()
   }
 
+  const sideItem = (active: boolean) => cx(
+    'flex min-h-[46px] items-center gap-3 rounded-full px-4 text-[15px] font-semibold no-underline transition-colors',
+    active ? 'bg-accent-200 text-accent-800 hover:text-accent-800' : 'text-ink hover:bg-neutral-100 hover:text-ink',
+  )
+
   return (
-    <div className="min-h-dvh md:flex">
-      {/* Sidebar desktop */}
-      <aside className="no-print sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-surface p-4 md:flex">
-        <div className="mb-6 px-2 text-lg font-bold">PO Jajanan</div>
-        <Link href="/pesanan/baru"
-          className="mb-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent font-semibold text-on-accent hover:bg-accent-hover">
-          <Plus size={20} aria-hidden />Pesanan Baru
+    <div className="min-h-dvh md:flex md:items-start">
+      <a className="skip" href="#konten">Langsung ke konten</a>
+
+      {/* Bar atas HP */}
+      <div className="no-print sticky top-0 z-30 flex items-center gap-2.5 bg-bg px-4 pb-3 pt-[calc(13.2px+env(safe-area-inset-top))] shadow-sm md:hidden">
+        <Logo size="sm" />
+        <div className="flex-1 font-heading text-[19px]">PO Jajanan</div>
+        <Link href="/pengaturan" aria-label="Pengaturan toko"
+          className={cx('grid size-[44px] place-items-center rounded-full',
+            isActive('/pengaturan') ? 'bg-accent-200 text-accent-800' : 'text-ink hover:bg-neutral-100')}>
+          <Settings size={20} {...ICON} />
         </Link>
-        <nav className="flex flex-col gap-1">
+      </div>
+
+      {/* Sidebar desktop */}
+      <aside className="no-print sticky top-3 isolate m-3 mr-0 hidden h-[calc(100dvh-26.4px)] w-[248px] shrink-0 flex-col gap-4 overflow-hidden rounded-card bg-surface px-4 py-6 md:flex">
+        <div aria-hidden="true" className="absolute -right-[70px] bottom-[90px] -z-10 size-[200px] rounded-full bg-sage-300 opacity-60" />
+        <div aria-hidden="true" className="absolute -left-[30px] bottom-[230px] -z-10 size-[90px] rounded-full bg-accent-300 opacity-50" />
+        <div className="flex items-center gap-2.5 px-1.5">
+          <Logo size="md" />
+          <div className="font-heading text-[21px] leading-tight">PO Jajanan</div>
+        </div>
+        <Link href="/pesanan/baru" className="btn btn-primary mt-2 min-h-[48px]">
+          <Plus size={20} {...ICON} />Pesanan Baru
+        </Link>
+        <nav aria-label="Menu utama" className="flex flex-col gap-1">
           {NAV.map(({ href, label, Icon }) => (
-            <Link key={href} href={href}
-              className={cx('flex min-h-11 items-center gap-3 rounded-xl px-3 font-medium',
-                isActive(href) ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-surface-2')}
-              aria-current={isActive(href) ? 'page' : undefined}>
-              <Icon size={20} aria-hidden />{label}
+            <Link key={href} href={href} className={sideItem(isActive(href))} aria-current={isActive(href) ? 'page' : undefined}>
+              <Icon size={20} {...ICON} />{label}
             </Link>
           ))}
         </nav>
-        <div className="mt-auto border-t border-line pt-3">
-          <Link href="/pengaturan"
-            className={cx('flex min-h-11 items-center gap-3 rounded-xl px-3 font-medium',
-              isActive('/pengaturan') ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2')}>
-            <Settings size={18} aria-hidden />Pengaturan toko
-          </Link>
-          <div className="truncate px-2 pt-2 text-sm text-muted" title={email ?? ''}>{email}</div>
-          <button type="button" onClick={logout} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-muted hover:bg-surface-2">
-            <LogOut size={18} aria-hidden />Keluar
+        <Link href="/pengaturan" className={cx(sideItem(isActive('/pengaturan')), 'mt-auto')}
+          aria-current={isActive('/pengaturan') ? 'page' : undefined}>
+          <Settings size={20} {...ICON} />Pengaturan toko
+        </Link>
+        <div className="flex flex-col gap-1 rounded-lg bg-neutral-100 px-4 py-3">
+          <div className="truncate text-sm text-neutral-800" title={email ?? ''}>{email}</div>
+          <button type="button" onClick={logout} className="btn btn-ghost min-h-[40px] justify-start px-0 text-[15px]">
+            <LogOut size={16} {...ICON} />Keluar
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-8">
-        <div className="mx-auto max-w-6xl">{children}</div>
+      <main id="konten" tabIndex={-1}
+        className={cx('min-w-0 flex-1 px-4 pt-4 md:px-6 md:pb-16 md:pt-8', onForm ? 'pb-6' : 'pb-44')}>
+        <div className="flex max-w-[1120px] flex-col gap-6">{children}</div>
       </main>
 
-      {/* Tombol utama HP */}
+      {/* Navigasi bawah HP + tombol utama */}
       {!onForm && (
-        <Link href="/pesanan/baru"
-          className="no-print fixed bottom-[84px] right-4 z-30 inline-flex min-h-14 items-center gap-2 rounded-full bg-accent px-5 font-bold text-on-accent shadow-lg md:hidden">
-          <Plus size={22} aria-hidden />Pesanan Baru
-        </Link>
-      )}
-
-      {/* Bottom nav HP */}
-      {!onForm && (
-        <nav className="no-print fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-          {NAV.map(({ href, label, Icon }) => (
-            <Link key={href} href={href}
-              className={cx('flex min-h-16 flex-col items-center justify-center gap-0.5 text-sm font-medium',
-                isActive(href) ? 'text-accent' : 'text-muted')}
-              aria-current={isActive(href) ? 'page' : undefined}>
-              <Icon size={22} aria-hidden />{label}
+        <div className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col items-end md:hidden">
+          {!onDetail && (
+            <Link href="/pesanan/baru" className="btn btn-primary pointer-events-auto mb-3 mr-4 min-h-[56px] px-[22px] shadow-lg">
+              <Plus size={22} {...ICON} />Pesanan Baru
             </Link>
-          ))}
-        </nav>
+          )}
+          <nav aria-label="Menu utama"
+            className="pointer-events-auto grid w-full grid-cols-4 rounded-t-lg bg-surface px-1 pt-1 pb-[env(safe-area-inset-bottom)] shadow-md">
+            {NAV.map(({ href, label, Icon }) => {
+              const on = isActive(href)
+              return (
+                <Link key={href} href={href} aria-current={on ? 'page' : undefined}
+                  className={cx('flex min-h-[64px] flex-col items-center justify-center gap-[3px] text-sm font-bold no-underline',
+                    on ? 'text-accent-800 hover:text-accent-800' : 'text-neutral-800 hover:text-neutral-800')}>
+                  <span className={cx('grid h-[30px] w-[52px] place-items-center rounded-full', on && 'bg-accent-200')}>
+                    <Icon size={22} {...ICON} />
+                  </span>
+                  {label}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
       )}
     </div>
   )
@@ -103,14 +135,11 @@ export function BatchPicker() {
   const { batches, batchId, setBatchId } = useBatch()
   if (batches.length === 0) return null
   return (
-    <label className="block">
-      <span className="sr-only">Pilih batch</span>
-      <select value={batchId ?? ''} onChange={(e) => setBatchId(e.target.value)}
-        className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 font-semibold md:w-auto">
-        {batches.map((b) => (
-          <option key={b.id} value={b.id}>{b.nama} · {BATCH_STATUS[b.status]}</option>
-        ))}
-      </select>
-    </label>
+    <select value={batchId ?? ''} onChange={(e) => setBatchId(e.target.value)} aria-label="Pilih batch"
+      className="input min-h-[44px] w-full max-w-full md:w-auto">
+      {batches.map((b) => (
+        <option key={b.id} value={b.id}>{b.nama} · {BATCH_STATUS[b.status]}</option>
+      ))}
+    </select>
   )
 }

@@ -10,11 +10,13 @@ import { CARA_TERIMA, METODE, ORDER_STATUS } from '@/lib/types'
 import { kelebihanBayar } from '@/lib/calc'
 import { setOrderStatus, terimaTunaiSelesai } from '@/lib/data'
 import { errMsg, jam, parseRupiah, rupiah, tanggal, today } from '@/lib/format'
-import { useBatch } from '@/components/batch-context'
-import { Alert, BayarBadge, Button, Card, Field, Loading, Modal, OrderStatusBadge, OrderTags, cx, inputCls, kodePesanan } from '@/components/ui'
 import { normWa } from '@/lib/foto'
+import { useBatch } from '@/components/batch-context'
+import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, cx, inputCls, kodePesanan } from '@/components/ui'
 
 const FLOW: OrderStatus[] = ['baru', 'dikonfirmasi', 'diproduksi', 'siap', 'selesai']
+const PANEL = 'rounded-card bg-surface px-6 py-4'
+const SIDE = 'flex flex-col gap-3 rounded-card bg-neutral-100 px-6 py-4 shadow-sm'
 
 export default function PesananDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -23,6 +25,7 @@ export default function PesananDetailPage() {
   const [order, setOrder] = useState<OrderSummary | null>(null)
   const [items, setItems] = useState<OrderItem[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [ganda, setGanda] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState('')
   const [paying, setPaying] = useState(false)
@@ -35,15 +38,20 @@ export default function PesananDetailPage() {
       supabase.from('payments').select('*').eq('order_id', id).order('tanggal_bayar').order('created_at'),
     ])
     if (!o.data) { setNotFound(true); return }
-    setOrder(o.data as OrderSummary)
+    const ord = o.data as OrderSummary
+    setOrder(ord)
     setItems((i.data ?? []) as OrderItem[])
     setPayments((p.data ?? []) as Payment[])
+    // Pembeli yang sama punya pesanan aktif lain di batch ini?
+    const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true })
+      .eq('batch_id', ord.batch_id).eq('customer_id', ord.customer_id).neq('status', 'dibatalkan').neq('id', ord.id)
+    setGanda(ord.status !== 'dibatalkan' && (count ?? 0) > 0)
   }, [id])
 
   useEffect(() => { load() }, [load])
 
   async function changeStatus(s: OrderStatus) {
-    if (!order) return
+    if (!order || s === order.status) return
     if (s === 'dibatalkan' && !window.confirm('Batalkan pesanan ini? Pesanan tetap tersimpan tetapi tidak dihitung di rekap dan tagihan.')) return
     setError('')
     try { await setOrderStatus(order.id, s, order.updated_at) } catch (e) { setError(errMsg(e).replace('KONFLIK: ', '')) }
@@ -71,7 +79,7 @@ export default function PesananDetailPage() {
     if (data) window.open(data.signedUrl, '_blank', 'noopener')
   }
 
-  if (notFound) return <Alert tone="bad">Pesanan tidak ditemukan.</Alert>
+  if (notFound) return <Alert>Pesanan tidak ditemukan.</Alert>
   if (!order) return <Loading />
 
   const batal = order.status === 'dibatalkan'
@@ -79,133 +87,155 @@ export default function PesananDetailPage() {
   const lebih = kelebihanBayar(Number(order.total), Number(order.terbayar))
   const batch = batches.find((b) => b.id === order.batch_id)
   const waLink = order.customer_wa ? `https://wa.me/${normWa(order.customer_wa)}` : null
+  const curIdx = FLOW.indexOf(order.status)
+  const sisaAktif = !batal && Number(order.sisa) > 0
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" onClick={() => router.push('/pesanan')} className="-ml-3"><ArrowLeft size={18} aria-hidden />Pesanan</Button>
+        <Button variant="ghost" onClick={() => router.push('/pesanan')} className="-ml-2.5 px-2.5 text-[15px]">
+          <ArrowLeft size={18} {...ICON} />Pesanan
+        </Button>
         {!selesai && (
-          <Link href={`/pesanan/${order.id}/edit`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 font-semibold hover:bg-surface-2">
-            <Pencil size={16} aria-hidden />Edit pesanan
+          <Link href={`/pesanan/${order.id}/edit`} className="btn btn-secondary min-h-[42px]">
+            <Pencil size={16} {...ICON} />Edit pesanan
           </Link>
         )}
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold md:text-3xl">{order.customer_nama}</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted">
+        <h1>{order.customer_nama}</h1>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-neutral-800">
           {order.customer_wa && <span>{order.customer_wa}</span>}
-          {waLink && <a href={waLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-semibold text-accent"><MessageCircle size={16} aria-hidden />Buka chat</a>}
+          {waLink && (
+            <a href={waLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 font-bold no-underline">
+              <MessageCircle size={16} {...ICON} />Buka chat
+            </a>
+          )}
           {batch && <span>· {batch.nama}</span>}
           <span>· {kodePesanan(order.id)}</span>
         </div>
-        <div className="mt-2"><OrderTags sumber={order.sumber} /></div>
+        {(order.sumber === 'link' || ganda) && <div className="mt-2"><OrderTags sumber={order.sumber} ganda={ganda} /></div>}
       </div>
 
-      {error && <Alert tone="bad">{error}</Alert>}
-      {batal && <Alert>Pesanan dibatalkan. Tidak dihitung di rekap produksi maupun total tagihan.</Alert>}
+      {error && <Alert>{error}</Alert>}
+      {batal && <Alert tone="muted">Pesanan dibatalkan. Tidak dihitung di rekap produksi maupun total tagihan.</Alert>}
       {lebih > 0 && !batal && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}. Periksa kembali atau kembalikan selisihnya.</Alert>}
 
-      <div className="grid gap-4 md:grid-cols-[1fr_360px]">
-        <div className="space-y-4">
-          {/* Item */}
-          <Card>
-            <div className="border-b border-line px-4 py-3 font-bold">Item</div>
-            <div className="divide-y divide-line">
-              {items.map((i) => (
-                <div key={i.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                  <div>
-                    <div className="font-semibold">{i.nama_produk_snapshot} <span className="num text-muted">×{i.qty}</span></div>
-                    <div className="num text-sm text-muted">{rupiah(i.harga_snapshot)} / pcs</div>
-                    {i.catatan && <div className="text-sm">Catatan: {i.catatan}</div>}
-                  </div>
-                  <div className="num font-semibold">{rupiah(Number(i.harga_snapshot) * i.qty)}</div>
-                </div>
-              ))}
-            </div>
-            <dl className="num space-y-1 border-t border-line px-4 py-3">
-              <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd>{rupiah(order.subtotal)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted">Ongkir</dt><dd>{rupiah(order.ongkir)}</dd></div>
-              <div className="flex justify-between text-lg font-bold"><dt>Total</dt><dd>{rupiah(order.total)}</dd></div>
-            </dl>
-          </Card>
+      {order.sumber === 'link' && order.status === 'baru' && (
+        <section aria-label="Pesanan dari link" className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card bg-accent-200 px-6 py-4 text-accent-900">
+          <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-0.5">
+            <div className="text-lg font-bold">Pesanan masuk dari link pemesanan</div>
+            <div className="text-[15px]">Pembeli mengisi sendiri. Cek item dan nomor WA, lalu konfirmasi.</div>
+            {ganda && <div className="mt-1 text-[15px] font-bold">Nomor ini punya pesanan aktif lain di batch ini. Pastikan bukan pesanan ganda.</div>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-[46px] px-5" onClick={() => changeStatus('dikonfirmasi')}>Konfirmasi pesanan</Button>
+            <Button variant="secondary" className="min-h-[46px] border-accent-500" onClick={() => changeStatus('dibatalkan')}>Tolak</Button>
+          </div>
+        </section>
+      )}
 
-          {/* Pengambilan */}
-          <Card className="p-4">
-            <div className="mb-2 font-bold">Pengambilan</div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-              <dt className="text-muted">Cara terima</dt><dd>{CARA_TERIMA[order.cara_terima]}</dd>
-              <dt className="text-muted">Tanggal</dt><dd>{tanggal(order.tanggal_ambil)} {jam(order.jam_ambil)}</dd>
-              {order.alamat && <><dt className="text-muted">Alamat</dt><dd className="whitespace-pre-line">{order.alamat}</dd></>}
-              {order.catatan && <><dt className="text-muted">Catatan</dt><dd className="whitespace-pre-line">{order.catatan}</dd></>}
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-4">
+          <section className={PANEL}>
+            <h4 className="mb-2">Item</h4>
+            {items.map((i) => (
+              <div key={i.id} className="flex justify-between gap-3 border-b border-divider py-3">
+                <div>
+                  <div className="font-bold">{i.nama_produk_snapshot} <span className="font-semibold text-neutral-800">×{i.qty}</span></div>
+                  <div className="text-sm text-neutral-800">{rupiah(i.harga_snapshot)} / pcs</div>
+                  {i.catatan && <div className="text-sm">Catatan: {i.catatan}</div>}
+                </div>
+                <div className="font-bold">{rupiah(Number(i.harga_snapshot) * i.qty)}</div>
+              </div>
+            ))}
+            <dl className="mt-3 flex flex-col gap-1">
+              <div className="flex justify-between"><dt className="text-neutral-800">Subtotal</dt><dd className="m-0">{rupiah(order.subtotal)}</dd></div>
+              <div className="flex justify-between"><dt className="text-neutral-800">Ongkir</dt><dd className="m-0">{rupiah(order.ongkir)}</dd></div>
+              <div className="mt-1 flex items-baseline justify-between"><dt className="text-xl font-bold">Total</dt><dd className="m-0 text-2xl font-bold">{rupiah(order.total)}</dd></div>
             </dl>
-            <p className="mt-3 text-sm text-muted">
+          </section>
+
+          <section className={PANEL}>
+            <h4 className="mb-3">Pengambilan</h4>
+            <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5">
+              <dt className="text-neutral-800">Cara terima</dt><dd className="m-0">{CARA_TERIMA[order.cara_terima]}</dd>
+              <dt className="text-neutral-800">Tanggal</dt><dd className="m-0">{tanggal(order.tanggal_ambil)} {jam(order.jam_ambil)}</dd>
+              <dt className="text-neutral-800">Alamat</dt><dd className="m-0 whitespace-pre-line">{order.alamat || '—'}</dd>
+              <dt className="text-neutral-800">Catatan</dt><dd className="m-0 whitespace-pre-line">{order.catatan || '—'}</dd>
+            </dl>
+            <p className="mb-0 mt-3 text-sm text-neutral-800">
               Dicatat oleh {order.created_by ?? '—'} · diubah terakhir oleh {order.updated_by ?? '—'}, {new Date(order.updated_at).toLocaleString('id-ID')}
             </p>
-          </Card>
+          </section>
         </div>
 
-        <div className="space-y-4">
-          {/* Pembayaran */}
-          <Card className="p-4">
+        <div className="flex min-w-0 max-w-[400px] flex-[1_1_320px] flex-col gap-4">
+          <section className={SIDE}>
             <div className="flex items-center justify-between gap-2">
-              <div className="font-bold">Pembayaran</div>
+              <h4>Pembayaran</h4>
               <BayarBadge status={order.status_bayar} dibatalkan={batal} />
             </div>
-            <dl className="num mt-3 space-y-1">
-              <div className="flex justify-between"><dt className="text-muted">Terbayar</dt><dd>{rupiah(order.terbayar)}</dd></div>
-              <div className="flex justify-between text-lg font-bold"><dt>Sisa tagihan</dt>
-                <dd className={cx(Number(order.sisa) > 0 && !batal && 'text-bad')}>{rupiah(batal ? 0 : order.sisa)}</dd></div>
+            <dl className="m-0 flex flex-col gap-1">
+              <div className="flex justify-between"><dt className="text-neutral-800">Terbayar</dt><dd className="m-0">{rupiah(order.terbayar)}</dd></div>
+              <div className="flex items-baseline justify-between">
+                <dt className="font-bold">Sisa tagihan</dt>
+                <dd className={cx('m-0 text-2xl font-bold', sisaAktif ? 'text-accent-700' : 'text-sage-700')}>{rupiah(batal ? 0 : order.sisa)}</dd>
+              </div>
             </dl>
             {payments.length > 0 && (
-              <ul className="mt-3 divide-y divide-line border-t border-line">
+              <div className="flex flex-col gap-1.5">
                 {payments.map((p) => (
-                  <li key={p.id} className="flex items-center gap-2 py-2">
+                  <div key={p.id} className="flex items-center gap-2 rounded-full bg-bg py-2 pl-4 pr-2">
                     <div className="min-w-0 flex-1">
-                      <div className="num font-semibold">{rupiah(p.jumlah)}</div>
-                      <div className="text-sm text-muted">{METODE[p.metode]} · {tanggal(p.tanggal_bayar, { day: 'numeric', month: 'short' })}</div>
+                      <div className="font-bold">{rupiah(p.jumlah)}</div>
+                      <div className="text-sm text-neutral-800">{METODE[p.metode]} · {tanggal(p.tanggal_bayar, { day: 'numeric', month: 'short' })}</div>
                     </div>
                     {p.bukti_path && (
-                      <button type="button" onClick={() => lihatBukti(p.bukti_path!)} className="grid size-11 place-items-center rounded-xl hover:bg-surface-2" aria-label="Lihat bukti">
-                        <ImageIcon size={18} />
+                      <button type="button" onClick={() => lihatBukti(p.bukti_path!)} aria-label={`Lihat bukti ${rupiah(p.jumlah)}`}
+                        className="btn btn-icon text-neutral-800 hover:bg-sage-200 hover:text-sage-900">
+                        <ImageIcon size={16} {...ICON} />
                       </button>
                     )}
-                    <button type="button" onClick={() => deletePayment(p)} className="grid size-11 place-items-center rounded-xl text-muted hover:bg-bad-soft hover:text-bad" aria-label="Hapus pembayaran">
-                      <Trash2 size={18} />
+                    <button type="button" onClick={() => deletePayment(p)} aria-label={`Hapus pembayaran ${rupiah(p.jumlah)}`}
+                      className="btn btn-icon text-neutral-800 hover:bg-accent-200 hover:text-accent-800">
+                      <Trash2 size={16} {...ICON} />
                     </button>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
-            {!batal && <Button className="mt-3 w-full" onClick={() => setPaying(true)}>Catat pembayaran</Button>}
-          </Card>
+            {!batal && <Button className="min-h-[46px]" onClick={() => setPaying(true)}>Catat pembayaran</Button>}
+          </section>
 
-          {/* Status pesanan */}
-          <Card className="p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="font-bold">Status pesanan</div>
+          <section className={SIDE}>
+            <div className="flex items-center justify-between gap-2">
+              <h4>Status pesanan</h4>
               <OrderStatusBadge status={order.status} />
             </div>
             {!batal && (
-              <div className="grid grid-cols-2 gap-2">
-                {FLOW.map((s) => (
-                  <button key={s} type="button" onClick={() => changeStatus(s)} disabled={order.status === s}
-                    className={cx('min-h-11 rounded-xl border px-2 text-sm font-semibold',
-                      order.status === s ? 'border-accent bg-accent-soft text-accent' : 'border-line hover:bg-surface-2')}>
-                    {ORDER_STATUS[s]}
+              <div className="flex flex-col">
+                {FLOW.map((f, i) => (
+                  <button key={f} type="button" onClick={() => changeStatus(f)} aria-current={i === curIdx ? 'step' : undefined}
+                    className="-ml-1.5 flex min-h-[44px] items-center gap-3 rounded-full py-1.5 pl-1.5 pr-3 text-left hover:bg-accent-100">
+                    <span className={cx('grid size-[30px] shrink-0 place-items-center rounded-full text-sm font-bold',
+                      i < curIdx ? 'bg-sage-600 text-bg' : i === curIdx ? 'bg-accent text-bg' : 'bg-neutral-300 text-neutral-800')}>
+                      {i + 1}
+                    </span>
+                    <span className={i === curIdx ? 'font-bold' : ''}>{ORDER_STATUS[f]}</span>
                   </button>
                 ))}
               </div>
             )}
-            {!batal && !selesai && Number(order.sisa) > 0 && (
-              <Button variant="secondary" className="mt-2 w-full" onClick={cod}>Terima tunai {rupiah(order.sisa)} & selesai</Button>
+            {!batal && !selesai && sisaAktif && (
+              <Button variant="secondary" onClick={cod}>Terima tunai {rupiah(order.sisa)} &amp; selesai</Button>
             )}
-            {batal ? (
-              <Button variant="secondary" className="w-full" onClick={() => changeStatus('baru')}>Aktifkan kembali</Button>
-            ) : !selesai && (
-              <Button variant="danger" className="mt-2 w-full" onClick={() => changeStatus('dibatalkan')}>Batalkan pesanan</Button>
+            {!batal && !selesai && (
+              <Button variant="ghost" className="min-h-[40px] text-accent-800 hover:text-accent-800" onClick={() => changeStatus('dibatalkan')}>Batalkan pesanan</Button>
             )}
-          </Card>
+            {batal && <Button variant="secondary" onClick={() => changeStatus('baru')}>Aktifkan kembali</Button>}
+          </section>
         </div>
       </div>
 
@@ -224,6 +254,9 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
 
   const nominal = parseRupiah(jumlah)
   const lebih = kelebihanBayar(Number(order.total), Number(order.terbayar) + nominal)
+  const half = Math.ceil(Number(order.total) / 2)
+  const quick = [{ v: Number(order.sisa), l: 'Lunasi' }, { v: half, l: 'DP 50%' }]
+    .filter((x, i, a) => x.v > 0 && a.findIndex((y) => y.v === x.v) === i)
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -245,40 +278,52 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
   }
 
   return (
-    <Modal open onClose={onClose} title="Catat pembayaran">
-      <form onSubmit={save} className="space-y-4">
-        {error && <Alert tone="bad">{error}</Alert>}
-        <Field label="Jumlah (Rp)" helper={`Sisa tagihan ${rupiah(order.sisa)}`}>
-          <input autoFocus inputMode="numeric" value={jumlah} onChange={(e) => setJumlah(e.target.value)} className={cx(inputCls, 'num text-lg font-bold')} />
+    <Modal open onClose={onClose} title="Catat pembayaran" width={460}>
+      <form onSubmit={save} className="flex flex-col gap-4">
+        {error && <Alert>{error}</Alert>}
+        <Field label="Jumlah (Rp)" htmlFor="pay-jumlah" helper={`Sisa tagihan ${rupiah(order.sisa)}`}>
+          <input id="pay-jumlah" autoFocus inputMode="numeric" value={jumlah} onChange={(e) => setJumlah(e.target.value)}
+            className={cx(inputCls, 'min-h-[48px] text-xl font-bold')} />
         </Field>
-        {lebih > 0 && <Alert>Kelebihan bayar {rupiah(lebih)}.</Alert>}
-        <div className="grid grid-cols-2 gap-2">
-          {[Number(order.sisa), Math.ceil(Number(order.total) / 2)].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((v, i) => (
-            <button key={v} type="button" onClick={() => setJumlah(String(v))} className="min-h-11 rounded-xl border border-line text-sm font-semibold hover:bg-surface-2">
-              {i === 0 ? 'Lunasi' : 'DP 50%'} {rupiah(v)}
-            </button>
-          ))}
-        </div>
-        <fieldset>
-          <legend className="mb-1.5 text-sm font-semibold">Metode</legend>
-          <div className="grid grid-cols-3 gap-2">
+        {lebih > 0 && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}.</Alert>}
+        {quick.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {quick.map((x) => (
+              <Button key={x.l} variant="secondary" className="min-h-[42px] whitespace-normal" onClick={() => setJumlah(String(x.v))}>
+                {x.l} {rupiah(x.v)}
+              </Button>
+            ))}
+          </div>
+        )}
+        <fieldset className="m-0 border-0 p-0">
+          <legend className="mb-[5px] p-0 text-[15px] font-bold">Metode</legend>
+          <div className="grid grid-cols-3 gap-1.5">
             {(Object.keys(METODE) as Metode[]).map((m) => (
               <button key={m} type="button" aria-pressed={metode === m} onClick={() => setMetode(m)}
-                className={cx('min-h-12 rounded-xl border px-2 text-sm font-semibold', metode === m ? 'border-accent bg-accent-soft text-accent' : 'border-line')}>
+                className={cx('min-h-[44px] rounded-full border px-1 text-sm font-semibold leading-tight',
+                  metode === m ? 'border-accent bg-accent text-bg' : 'border-divider text-ink hover:bg-neutral-200')}>
                 {METODE[m]}
               </button>
             ))}
           </div>
         </fieldset>
-        <Field label="Tanggal bayar">
-          <input type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} className={inputCls} />
+        <Field label="Tanggal bayar" htmlFor="pay-tgl">
+          <input id="pay-tgl" type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} className={inputCls} />
         </Field>
         {metode !== 'tunai' && (
-          <Field label="Bukti transfer (opsional)" helper="Satu foto.">
-            <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-surface-2 file:px-4 file:font-semibold" />
-          </Field>
+          <div className="flex flex-col">
+            <div className="mb-[5px] text-[15px] font-bold">Bukti transfer (opsional)</div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="btn btn-secondary relative bg-bg">
+                {file ? 'Ganti foto' : 'Pilih foto'}
+                <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  className="absolute inset-0 cursor-pointer opacity-0" />
+              </label>
+              {file && <span className="min-w-0 truncate text-sm text-neutral-800">{file.name}</span>}
+            </div>
+          </div>
         )}
-        <Button type="submit" disabled={busy} className="w-full">{busy ? 'Menyimpan…' : 'Simpan pembayaran'}</Button>
+        <Button type="submit" disabled={busy} className="min-h-[48px]">{busy ? 'Menyimpan…' : 'Simpan pembayaran'}</Button>
       </form>
     </Modal>
   )

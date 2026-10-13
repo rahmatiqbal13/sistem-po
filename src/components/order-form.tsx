@@ -8,20 +8,24 @@ import type { CaraTerima, Customer, Order, OrderItem, OrderStatus, Product, Quot
 import { CARA_TERIMA, ORDER_STATUS } from '@/lib/types'
 import { totalPesanan, subtotal as hitungSubtotal } from '@/lib/calc'
 import { errMsg, parseRupiah, rupiah } from '@/lib/format'
+import { fotoUrl } from '@/lib/foto'
 import { useBatch } from './batch-context'
-import { Alert, Button, Field, Loading, cx, inputCls } from './ui'
+import { Alert, Button, Field, ICON, Kicker, Loading, ProductPhoto, cx, inputCls } from './ui'
 
 interface Line { product_id: string; nama: string; harga: number; qty: number; catatan: string; snapshot: boolean }
 
 const STEPS = ['Pembeli', 'Item', 'Cara terima'] as const
+const SECTION = 'flex-col gap-4 rounded-card bg-surface px-6 pb-6 pt-4'
 
 export function OrderForm({ orderId }: { orderId?: string }) {
   const router = useRouter()
   const { batches, batchId: ctxBatchId } = useBatch()
   const [ready, setReady] = useState(!orderId)
-  const [step, setStep] = useState(0)
+  // Edit langsung membuka langkah Item (yang paling sering diubah)
+  const [step, setStep] = useState(orderId ? 1 : 0)
   const [error, setError] = useState('')
   const [conflict, setConflict] = useState('')
+  const [confirmOver, setConfirmOver] = useState(false)
   const [busy, setBusy] = useState(false)
 
   // data
@@ -100,8 +104,9 @@ export function OrderForm({ orderId }: { orderId?: string }) {
   const visibleProducts = products.filter((p) => p.aktif || lines[p.id])
   const lineList = Object.values(lines).filter((l) => l.qty > 0)
   const itemsForCalc = lineList.map((l) => ({ harga: l.harga, qty: l.qty }))
+  const nOngkir = cara === 'pickup' ? 0 : parseRupiah(ongkir)
   const sub = hitungSubtotal(itemsForCalc)
-  const total = totalPesanan(itemsForCalc, parseRupiah(ongkir))
+  const total = totalPesanan(itemsForCalc, nOngkir)
   const totalQty = lineList.reduce((s, l) => s + l.qty, 0)
   const batch = batches.find((b) => b.id === batchId)
 
@@ -115,8 +120,9 @@ export function OrderForm({ orderId }: { orderId?: string }) {
   function setQty(p: Product, qty: number) {
     setLines((cur) => {
       const prev = cur[p.id]
-      if (qty <= 0 && !prev) return cur
-      return { ...cur, [p.id]: prev ? { ...prev, qty: Math.max(0, qty) } : { product_id: p.id, nama: p.nama, harga: p.harga, qty, catatan: '', snapshot: false } }
+      const n = Math.max(0, Math.min(999, qty))
+      if (n <= 0 && !prev) return cur
+      return { ...cur, [p.id]: prev ? { ...prev, qty: n } : { product_id: p.id, nama: p.nama, harga: Number(p.harga), qty: n, catatan: '', snapshot: false } }
     })
   }
 
@@ -126,30 +132,36 @@ export function OrderForm({ orderId }: { orderId?: string }) {
     alamat: cara !== 'pickup' && !alamat.trim() ? 'Alamat wajib untuk pengantaran.' : '',
     batch: !batchId ? 'Pilih batch.' : '',
   }
+  const shown = touched ? errs : { customer: '', items: '', alamat: '', batch: '' }
 
   function next() {
-    setTouched(true)
-    if (step === 0 && errs.customer) return
-    if (step === 1 && errs.items) return
+    if ((step === 0 && errs.customer) || (step === 1 && errs.items)) return setTouched(true)
     setTouched(false)
+    setError('')
     setStep((s) => Math.min(s + 1, 2))
     window.scrollTo({ top: 0 })
   }
 
-  async function save() {
+  async function save(force = false) {
     setTouched(true)
     const firstErr = Object.values(errs).find(Boolean)
     if (firstErr) {
       setError(firstErr)
-      setStep(errs.customer ? 0 : errs.items ? 1 : 2)
+      setConfirmOver(false)
+      setStep(errs.customer || errs.batch ? 0 : errs.items ? 1 : 2)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    if (overQuota.length && !window.confirm(
-      'Kuota terlampaui:\n' + overQuota.map((o) => `• ${o.nama}: pesan ${o.qty}, sisa kuota ${o.sisa}`).join('\n') + '\n\nTetap simpan?'
-    )) return
+    if (overQuota.length && !force) {
+      setError('')
+      setConfirmOver(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
 
     setBusy(true)
     setError('')
+    setConfirmOver(false)
     const payload = {
       id: orderId,
       expected_updated_at: updatedAt,
@@ -157,7 +169,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       customer_id: customer!.id,
       cara_terima: cara,
       alamat: cara === 'pickup' ? '' : alamat.trim(),
-      ongkir: cara === 'pickup' ? 0 : parseRupiah(ongkir),
+      ongkir: nOngkir,
       tanggal_ambil: tglAmbil,
       jam_ambil: jamAmbil,
       catatan: catatan.trim(),
@@ -172,6 +184,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
     if (error) {
       if (error.message.startsWith('KONFLIK')) setConflict(error.message.replace('KONFLIK: ', ''))
       else setError(errMsg(error))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     router.replace(`/pesanan/${data}`)
@@ -179,22 +192,27 @@ export function OrderForm({ orderId }: { orderId?: string }) {
 
   if (!ready) return <Loading />
 
-  const sectionCls = (n: number) => cx('space-y-4', step === n ? 'block' : 'hidden md:block')
+  // Di HP hanya langkah aktif yang tampil; di desktop semuanya
+  const showStep = (n: number) => (step === n ? 'flex' : 'hidden md:flex')
+  const isSelesai = !!orderId && status === 'selesai'
 
   return (
-    <div className="pb-32 md:pb-28">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold md:text-3xl">{orderId ? 'Edit pesanan' : 'Pesanan baru'}</h1>
-        <Button variant="ghost" onClick={() => router.back()}>Batal</Button>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="min-w-0 flex-[1_1_320px]">
+          {batch && <Kicker>{batch.nama}</Kicker>}
+          <h1 className="mt-1.5">{orderId ? 'Edit pesanan' : 'Pesanan baru'}</h1>
+        </div>
+        <Button variant="ghost" onClick={() => router.back()} className="px-3.5">Batal</Button>
       </div>
 
       {/* Indikator langkah (HP) */}
-      <ol className="mb-5 grid grid-cols-3 gap-2 md:hidden">
+      <ol aria-label="Langkah" className="m-0 grid list-none grid-cols-3 gap-1.5 p-0 md:hidden">
         {STEPS.map((s, i) => (
           <li key={s}>
-            <button type="button" onClick={() => setStep(i)}
-              className={cx('w-full border-t-4 pt-1.5 text-left text-sm font-semibold',
-                i === step ? 'border-accent text-accent' : i < step ? 'border-accent/40 text-ink' : 'border-line text-muted')}>
+            <button type="button" onClick={() => { setStep(i); setTouched(false) }} aria-current={i === step ? 'step' : undefined}
+              className={cx('min-h-[44px] w-full rounded-full px-1.5 text-sm font-bold leading-tight',
+                i === step ? 'bg-accent text-bg' : i < step ? 'bg-accent-200 text-accent-900' : 'bg-surface text-ink')}>
               {i + 1}. {s}
             </button>
           </li>
@@ -202,153 +220,158 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       </ol>
 
       {conflict && (
-        <div className="mb-4">
-          <Alert tone="bad">
-            {conflict}
-            <div className="mt-2"><Button variant="secondary" onClick={() => window.location.reload()}>Muat ulang pesanan</Button></div>
-          </Alert>
+        <Alert>
+          {conflict}
+          <div className="mt-2"><Button variant="secondary" className="bg-bg" onClick={() => window.location.reload()}>Muat ulang pesanan</Button></div>
+        </Alert>
+      )}
+      {error && <Alert>{error}</Alert>}
+      {confirmOver && overQuota.length > 0 && (
+        <div role="alertdialog" aria-labelledby="ov-t" className="flex flex-col gap-2 rounded-card bg-accent-200 px-6 py-4 text-accent-900">
+          <div id="ov-t" className="text-lg font-bold">Kuota terlampaui</div>
+          {overQuota.map((o) => <div key={o.nama}>{o.nama}: pesan {o.qty}, sisa kuota {o.sisa}</div>)}
+          <div className="mt-1 flex flex-wrap gap-2">
+            <Button onClick={() => save(true)} className="px-5">Tetap simpan</Button>
+            <Button variant="secondary" className="border-accent-500" onClick={() => { setConfirmOver(false); setStep(1) }}>Ubah jumlah</Button>
+          </div>
         </div>
       )}
-      {error && <div className="mb-4"><Alert tone="bad">{error}</Alert></div>}
 
-      <div className="grid gap-6 md:grid-cols-2 md:gap-8">
-        {/* 1. Pembeli */}
-        <section className={sectionCls(0)}>
-          <h2 className="hidden text-xl font-bold md:block">1. Pembeli</h2>
-          <CustomerPicker value={customer} onChange={setCustomer} error={touched ? errs.customer : ''} />
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex min-w-0 flex-[1_1_380px] flex-col gap-4">
+          {/* 1. Pembeli */}
+          <section aria-labelledby="h-pembeli" className={cx(SECTION, showStep(0))}>
+            <h2 id="h-pembeli" className="text-xl">1. Pembeli</h2>
+            <CustomerPicker value={customer} onChange={(c) => { setCustomer(c); setError('') }} error={shown.customer} />
+            <Field label="Batch PO" htmlFor="nb-batch"
+              error={batch && batch.status !== 'buka' ? `Batch “${batch.nama}” sedang tidak berstatus Buka.` : shown.batch}>
+              <select id="nb-batch" value={batchId} onChange={(e) => { setBatchId(e.target.value); if (!orderId) setTglAmbil(null) }} className={inputCls}>
+                {!batchId && <option value="">Pilih batch</option>}
+                {batches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
+              </select>
+            </Field>
+          </section>
 
-          <div className="hidden md:block">
-            <BatchSelect batchId={batchId} onChange={setBatchId} />
-          </div>
-        </section>
+          {/* 3. Cara terima */}
+          <section aria-labelledby="h-cara" className={cx(SECTION, showStep(2))}>
+            <h2 id="h-cara" className="text-xl">3. Cara terima</h2>
+            <div role="radiogroup" aria-labelledby="h-cara" className="grid grid-cols-3 gap-1.5">
+              {(Object.keys(CARA_TERIMA) as CaraTerima[]).map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
+                  className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
+                    cara === c ? 'border-accent bg-accent-200 text-accent-900' : 'border-divider bg-bg text-ink')}>
+                  {CARA_TERIMA[c]}
+                </button>
+              ))}
+            </div>
+            {cara !== 'pickup' && (
+              <>
+                <Field label="Alamat" htmlFor="nb-alamat" helper="Wajib untuk pengantaran." error={shown.alamat}>
+                  <textarea id="nb-alamat" rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)}
+                    aria-invalid={!!shown.alamat} className={inputCls} />
+                </Field>
+                <Field label="Ongkir (Rp)" htmlFor="nb-ongkir" helper="Diisi manual. Contoh: 10000">
+                  <input id="nb-ongkir" inputMode="numeric" value={ongkir} onChange={(e) => setOngkir(e.target.value)} className={inputCls} />
+                </Field>
+              </>
+            )}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+              <Field label="Tanggal ambil/antar" htmlFor="nb-tgl">
+                <input id="nb-tgl" type="date" value={tglAmbil} onChange={(e) => setTglAmbil(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Jam (opsional)" htmlFor="nb-jam">
+                <input id="nb-jam" type="time" value={jamAmbil} onChange={(e) => setJamAmbil(e.target.value)} className={inputCls} />
+              </Field>
+            </div>
+            <Field label="Catatan pesanan (opsional)" htmlFor="nb-cat">
+              <textarea id="nb-cat" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)} className={inputCls} />
+            </Field>
+            {orderId && !isSelesai && (
+              <Field label="Status pesanan" htmlFor="nb-status">
+                <select id="nb-status" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className={inputCls}>
+                  {Object.entries(ORDER_STATUS).filter(([v]) => v !== 'selesai').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </Field>
+            )}
+          </section>
+        </div>
 
         {/* 2. Item */}
-        <section className={cx(sectionCls(1), 'md:row-span-2')}>
-          <h2 className="hidden text-xl font-bold md:block">2. Item</h2>
-          {touched && errs.items && <Alert tone="bad">{errs.items}</Alert>}
+        <section aria-labelledby="h-item" className={cx(SECTION, 'min-w-0 flex-[1_1_420px]', showStep(1))}>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 id="h-item" className="text-xl">2. Item</h2>
+            {totalQty > 0 && <span className="text-sm text-neutral-800">{totalQty} item dipilih</span>}
+          </div>
+          {shown.items && <div role="alert" className="text-[15px] font-bold text-accent-800">{shown.items}</div>}
           {visibleProducts.length === 0 ? (
-            <Alert>Belum ada produk aktif. Tambahkan di menu Produk.</Alert>
+            <div className="text-neutral-800">Belum ada produk aktif. Tambahkan di menu Produk.</div>
           ) : (
-            <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+            <div className="flex flex-col">
               {visibleProducts.map((p) => {
                 const line = lines[p.id]
                 const qty = line?.qty ?? 0
                 const q = quotas.find((x) => x.product_id === p.id)
                 const sisa = q?.kuota != null ? q.kuota - (used[p.id] ?? 0) : null
-                const harga = line?.harga ?? p.harga
+                const over = sisa !== null && qty > sisa
+                const harga = line?.harga ?? Number(p.harga)
                 return (
-                  <div key={p.id} className="p-3">
+                  <div key={p.id} className="flex flex-col gap-2 border-b border-divider py-3 last:border-0">
                     <div className="flex items-center gap-3">
+                      <ProductPhoto url={fotoUrl(p.foto_path)} size={52} />
                       <div className="min-w-0 flex-1">
-                        <div className="font-semibold">{p.nama}{!p.aktif && <span className="text-sm font-normal text-muted"> (nonaktif)</span>}</div>
-                        <div className="num text-sm text-muted">
+                        <div className="font-bold leading-snug">{p.nama}{!p.aktif && ' (nonaktif)'}</div>
+                        <div className="text-sm text-neutral-800">
                           {rupiah(harga)}
-                          {sisa !== null && <> · sisa kuota <span className={cx(qty > sisa && 'font-semibold text-bad')}>{Math.max(sisa - qty, 0)}</span></>}
+                          {sisa !== null && <span className={cx(over && 'font-bold text-accent-800')}> · sisa kuota {Math.max(sisa - qty, 0)}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => setQty(p, qty - 1)} disabled={qty === 0}
-                          className="grid size-11 place-items-center rounded-xl border border-line disabled:opacity-40" aria-label={`Kurangi ${p.nama}`}>
-                          <Minus size={18} />
+                        <button type="button" onClick={() => setQty(p, qty - 1)} disabled={qty === 0} aria-label={`Kurangi ${p.nama}`}
+                          className="grid size-[44px] place-items-center rounded-full border border-divider bg-bg text-ink hover:bg-neutral-200">
+                          <Minus size={18} {...ICON} />
                         </button>
-                        <input inputMode="numeric" value={qty || ''} placeholder="0" aria-label={`Qty ${p.nama}`}
+                        <input inputMode="numeric" value={qty || ''} placeholder="0" aria-label={`Jumlah ${p.nama}`}
                           onChange={(e) => setQty(p, parseInt(e.target.value.replace(/\D/g, '') || '0', 10))}
-                          className="num h-11 w-12 rounded-xl border border-line bg-surface text-center font-bold" />
-                        <button type="button" onClick={() => setQty(p, qty + 1)}
-                          className="grid size-11 place-items-center rounded-xl bg-accent text-on-accent" aria-label={`Tambah ${p.nama}`}>
-                          <Plus size={18} />
+                          className="input min-h-[44px] w-[56px] bg-bg px-1 text-center text-[17px] font-bold" />
+                        <button type="button" onClick={() => setQty(p, qty + 1)} aria-label={`Tambah ${p.nama}`}
+                          className="grid size-[44px] place-items-center rounded-full bg-accent text-bg hover:bg-accent-600">
+                          <Plus size={18} {...ICON} />
                         </button>
                       </div>
                     </div>
                     {qty > 0 && (
-                      <input value={line?.catatan ?? ''} placeholder="Catatan item, mis. tanpa sambal"
+                      <input value={line?.catatan ?? ''} maxLength={100} placeholder="Catatan item, mis. tanpa sambal" aria-label={`Catatan untuk ${p.nama}`}
                         onChange={(e) => setLines((cur) => ({ ...cur, [p.id]: { ...cur[p.id], catatan: e.target.value } }))}
-                        className={cx(inputCls, 'mt-2 text-sm')} aria-label={`Catatan ${p.nama}`} />
+                        className="input min-h-[44px] bg-bg text-[15px]" />
                     )}
-                    {sisa !== null && qty > sisa && (
-                      <p className="mt-1 text-sm font-medium text-bad">Melebihi sisa kuota ({Math.max(sisa, 0)}).</p>
-                    )}
+                    {over && <div className="text-sm font-bold text-accent-800">Melebihi sisa kuota ({Math.max(sisa, 0)}).</div>}
                   </div>
                 )
               })}
             </div>
           )}
         </section>
-
-        {/* 3. Cara terima */}
-        <section className={sectionCls(2)}>
-          <h2 className="hidden text-xl font-bold md:block">3. Cara terima</h2>
-          <div role="radiogroup" aria-label="Cara terima" className="grid grid-cols-3 gap-2">
-            {(Object.keys(CARA_TERIMA) as CaraTerima[]).map((c) => (
-              <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
-                className={cx('min-h-12 rounded-xl border px-2 text-sm font-semibold',
-                  cara === c ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface')}>
-                {CARA_TERIMA[c]}
-              </button>
-            ))}
-          </div>
-          {cara !== 'pickup' && (
-            <>
-              <Field label="Alamat" error={touched ? errs.alamat : ''} helper="Wajib untuk pengantaran.">
-                <textarea rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Ongkir (Rp)" helper="Diisi manual. Contoh: 10000">
-                <input inputMode="numeric" value={ongkir} onChange={(e) => setOngkir(e.target.value)} className={cx(inputCls, 'num')} />
-              </Field>
-            </>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Tanggal ambil/antar">
-              <input type="date" value={tglAmbil} onChange={(e) => setTglAmbil(e.target.value)} className={inputCls} />
-            </Field>
-            <Field label="Jam (opsional)">
-              <input type="time" value={jamAmbil} onChange={(e) => setJamAmbil(e.target.value)} className={inputCls} />
-            </Field>
-          </div>
-          <Field label="Catatan pesanan (opsional)">
-            <textarea rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)} className={inputCls} />
-          </Field>
-          {orderId && (
-            <Field label="Status pesanan">
-              <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className={inputCls}>
-                {Object.entries(ORDER_STATUS).filter(([v]) => v !== 'selesai').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Field>
-          )}
-          <div className="md:hidden"><BatchSelect batchId={batchId} onChange={setBatchId} /></div>
-          {batch && batch.status !== 'buka' && (
-            <Alert>Batch “{batch.nama}” sedang tidak berstatus Buka.</Alert>
-          )}
-        </section>
       </div>
 
       {/* Total berjalan */}
-      <div className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] md:left-64">
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm text-muted">{totalQty} item · subtotal {rupiah(sub)}{cara !== 'pickup' && parseRupiah(ongkir) > 0 ? ` + ongkir ${rupiah(parseRupiah(ongkir))}` : ''}</div>
-            <div className="num text-[22px] font-bold leading-7">{rupiah(total)}</div>
+      <div className="no-print sticky bottom-[calc(13.2px+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 rounded-card bg-neutral-100 py-3 pl-6 pr-3 shadow-lg">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-neutral-800">
+            {totalQty} item · subtotal {rupiah(sub)}{nOngkir > 0 ? ` + ongkir ${rupiah(nOngkir)}` : ''}
           </div>
-          {step < 2 && <Button className="md:hidden" onClick={next}>Lanjut</Button>}
-          <Button className={cx(step < 2 && 'hidden md:inline-flex')} onClick={save} disabled={busy || status === 'selesai' && !!orderId}>
-            {busy ? <>Menyimpan…</> : <><Check size={18} aria-hidden />Simpan pesanan</>}
-          </Button>
+          <div className="text-2xl font-bold leading-tight">{rupiah(total)}</div>
         </div>
+        {step < 2 && <Button className="min-h-[50px] px-6 md:hidden" onClick={next}>Lanjut</Button>}
+        <Button className={cx('min-h-[50px] px-[22px]', step < 2 && 'hidden md:inline-flex')} onClick={() => save()} disabled={busy || isSelesai}>
+          {busy ? 'Menyimpan…' : <><Check size={18} {...ICON} />Simpan pesanan</>}
+        </Button>
       </div>
     </div>
   )
 }
 
-function BatchSelect({ batchId, onChange }: { batchId: string; onChange: (id: string) => void }) {
-  const { batches } = useBatch()
-  return (
-    <Field label="Batch PO">
-      <select value={batchId} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-        {!batchId && <option value="">Pilih batch</option>}
-        {batches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
-      </select>
-    </Field>
-  )
+function inisial(nama: string) {
+  return nama.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
 }
 
 function CustomerPicker({ value, onChange, error }: { value: Customer | null; onChange: (c: Customer | null) => void; error: string }) {
@@ -364,7 +387,7 @@ function CustomerPicker({ value, onChange, error }: { value: Customer | null; on
     const term = q.trim()
     const id = ++reqId.current
     const t = setTimeout(async () => {
-      let query = createClient().from('customers').select('*').order('created_at', { ascending: false }).limit(8)
+      let query = createClient().from('customers').select('*').order('created_at', { ascending: false }).limit(6)
       if (term) {
         const safe = term.replace(/[%,()]/g, '')
         const digits = term.replace(/\D/g, '')
@@ -379,7 +402,7 @@ function CustomerPicker({ value, onChange, error }: { value: Customer | null; on
   async function add() {
     if (!nama.trim()) return setErr('Nama wajib diisi.')
     const { data, error } = await createClient().from('customers')
-      .insert({ nama: nama.trim(), no_wa: normalizeWa(wa) || null }).select('*').single()
+      .insert({ nama: nama.trim(), no_wa: wa.replace(/[^\d+]/g, '') || null }).select('*').single()
     if (error) return setErr(errMsg(error))
     onChange(data as Customer)
     setAdding(false)
@@ -387,60 +410,62 @@ function CustomerPicker({ value, onChange, error }: { value: Customer | null; on
 
   if (value) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-accent bg-accent-soft p-4">
+      <div className="flex items-center gap-3 rounded-full bg-accent-100 p-2 outline-2 -outline-offset-2 outline-accent">
+        <div aria-hidden="true" className="grid size-[46px] shrink-0 place-items-center rounded-full bg-accent-300 font-bold text-accent-900">{inisial(value.nama)}</div>
         <div className="min-w-0 flex-1">
-          <div className="font-semibold">{value.nama}</div>
-          <div className="text-sm text-muted">{value.no_wa || 'Tanpa nomor WA'}</div>
+          <div className="font-bold">{value.nama}</div>
+          <div className="whitespace-nowrap text-sm text-neutral-800">{value.no_wa || 'Tanpa nomor WA'}</div>
         </div>
-        <Button variant="secondary" onClick={() => onChange(null)}>Ganti</Button>
+        <Button variant="secondary" className="bg-bg" onClick={() => onChange(null)}>Ganti</Button>
       </div>
     )
   }
 
   if (adding) {
     return (
-      <div className="space-y-3 rounded-2xl border border-line bg-surface p-4">
-        <div className="font-semibold">Pembeli baru</div>
-        {err && <Alert tone="bad">{err}</Alert>}
-        <Field label="Nama"><input autoFocus value={nama} onChange={(e) => setNama(e.target.value)} className={inputCls} /></Field>
-        <Field label="Nomor WhatsApp" helper="Contoh: 0812 3456 7890">
-          <input inputMode="tel" value={wa} onChange={(e) => setWa(e.target.value)} className={inputCls} />
+      <div className="flex flex-col gap-3 rounded-lg bg-bg p-4">
+        <div className="font-bold">Pembeli baru</div>
+        <Field label="Nama" htmlFor="nb-nama" error={err}>
+          <input id="nb-nama" autoFocus autoComplete="off" value={nama} onChange={(e) => setNama(e.target.value)} className="input bg-neutral-100" />
         </Field>
-        <div className="flex gap-2">
-          <Button onClick={add}>Simpan pembeli</Button>
-          <Button variant="ghost" onClick={() => setAdding(false)}>Batal</Button>
+        <Field label="Nomor WhatsApp" htmlFor="nb-wa" helper="Contoh: 0812 3456 7890">
+          <input id="nb-wa" inputMode="tel" value={wa} onChange={(e) => setWa(e.target.value)} className="input bg-neutral-100" />
+        </Field>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={add} className="px-5">Simpan pembeli</Button>
+          <Button variant="ghost" onClick={() => { setAdding(false); setErr('') }}>Batal</Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-2">
-      <Field label="Cari pembeli" helper="Ketik nama atau nomor WA." error={error}>
+    <>
+      <Field label="Cari pembeli" htmlFor="nb-cari" error={error}>
         <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} className={cx(inputCls, 'pl-10')} />
+          <Search size={18} {...ICON} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-800" />
+          <input id="nb-cari" autoFocus autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ketik nama atau nomor WA"
+            aria-invalid={!!error} className={cx(inputCls, 'pl-[42px]')} />
         </div>
       </Field>
-      <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+      <div className="flex flex-col overflow-hidden rounded-lg bg-bg">
         {results.map((c) => (
-          <button key={c.id} type="button" onClick={() => onChange(c)} className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-surface-2">
-            <span className="font-semibold">{c.nama}</span>
-            <span className="text-sm text-muted">{c.no_wa}</span>
+          <button key={c.id} type="button" onClick={() => onChange(c)}
+            className="flex min-h-[52px] items-center justify-between gap-3 border-b border-divider px-4 py-2 text-left leading-snug hover:bg-accent-100">
+            <span className="min-w-0 flex-1 font-bold">{c.nama}</span>
+            <span className="whitespace-nowrap text-sm text-neutral-800">{c.no_wa}</span>
           </button>
         ))}
         <button type="button" onClick={() => {
-          const digits = q.replace(/\D/g, '')
-          if (digits.length >= 6 && digits.length === q.replace(/\s/g, '').length) { setWa(q); setNama('') } else { setNama(q); setWa('') }
+          const t = q.trim(), digits = t.replace(/\D/g, '')
+          const isWa = digits.length >= 6 && digits.length === t.replace(/[\s-]/g, '').length
+          setNama(isWa ? '' : t)
+          setWa(isWa ? t : '')
           setAdding(true)
-        }} className="flex min-h-12 w-full items-center gap-2 px-4 py-2 font-semibold text-accent hover:bg-surface-2">
-          <UserPlus size={18} aria-hidden />Tambah pembeli baru{q.trim() ? `: “${q.trim()}”` : ''}
+        }} className="flex min-h-[52px] items-center gap-2.5 px-4 py-2 text-left font-bold text-accent-700 hover:bg-accent-100">
+          <UserPlus size={18} {...ICON} />{q.trim() ? `Tambah pembeli baru: “${q.trim()}”` : 'Tambah pembeli baru'}
         </button>
       </div>
-    </div>
+    </>
   )
-}
-
-function normalizeWa(s: string) {
-  return s.replace(/[^\d+]/g, '')
 }

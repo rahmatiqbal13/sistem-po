@@ -5,8 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
 import { errMsg, parseRupiah, rupiah } from '@/lib/format'
 import { fotoUrl, kompresFoto } from '@/lib/foto'
-import { ImageIcon } from 'lucide-react'
-import { Alert, Button, Card, Empty, Field, Loading, Modal, PageHeader, cx, inputCls } from '@/components/ui'
+import { Alert, Button, Empty, Field, Loading, Modal, PageHeader, ProductPhoto, cx, inputCls } from '@/components/ui'
 
 export default function ProdukPage() {
   const [products, setProducts] = useState<Product[] | null>(null)
@@ -24,28 +23,40 @@ export default function ProdukPage() {
     load()
   }
 
+  const openNew = () => setEditing({ nama: '', harga: 0, aktif: true })
+
   return (
     <>
       <PageHeader title="Produk" subtitle="Harga di pesanan lama tidak berubah saat harga produk diubah."
-        action={<Button onClick={() => setEditing({ nama: '', harga: 0, aktif: true })}>+ Tambah produk</Button>} />
+        action={<Button onClick={openNew}>+ Tambah produk</Button>} />
 
-      {!products ? <Loading /> : products.length === 0 ? <Empty>Belum ada produk. Tambahkan produk pertama Anda.</Empty> : (
-        <Card className="divide-y divide-line">
+      {!products ? <Loading /> : products.length === 0 ? (
+        <Empty title="Belum ada produk" action={<Button className="px-5" onClick={openNew}>+ Tambah produk</Button>}>
+          Tambahkan produk pertama Anda beserta harganya.
+        </Empty>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
           {products.map((p) => (
-            <div key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <Thumb path={p.foto_path} />
-              <div className="min-w-0 flex-1">
-                <div className={cx('font-semibold', !p.aktif && 'text-muted')}>{p.nama}</div>
-                <div className="num text-muted">{rupiah(p.harga)}</div>
+            <div key={p.id} className={cx('flex flex-col gap-3 rounded-card bg-surface px-6 py-4', !p.aktif && 'opacity-60')}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProductPhoto url={fotoUrl(p.foto_path)} size={64} />
+                  <div className="min-w-0">
+                    <div className="text-[19px] font-bold leading-tight">{p.nama}</div>
+                    <div className="mt-0.5 text-neutral-800">{rupiah(p.harga)}</div>
+                  </div>
+                </div>
+                <span className={cx('tag', p.aktif ? 'bg-sage-200 text-sage-900' : 'bg-neutral-200 text-neutral-800')}>
+                  {p.aktif ? 'Aktif' : 'Nonaktif'}
+                </span>
               </div>
-              <span className={cx('rounded-full px-2.5 py-1 text-sm font-semibold', p.aktif ? 'bg-ok-soft text-ok' : 'bg-surface-2 text-muted')}>
-                {p.aktif ? 'Aktif' : 'Nonaktif'}
-              </span>
-              <Button variant="secondary" onClick={() => toggle(p)}>{p.aktif ? 'Nonaktifkan' : 'Aktifkan'}</Button>
-              <Button variant="secondary" onClick={() => setEditing(p)}>Edit</Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => toggle(p)}>{p.aktif ? 'Nonaktifkan' : 'Aktifkan'}</Button>
+                <Button variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+              </div>
             </div>
           ))}
-        </Card>
+        </div>
       )}
 
       {editing && <ProductForm product={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
@@ -61,13 +72,14 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
   const [preview, setPreview] = useState<string | null>(fotoUrl(product.foto_path))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const hv = parseRupiah(harga)
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
     if (!nama.trim()) return setError('Nama produk wajib diisi.')
     setBusy(true)
     const supabase = createClient()
-    const row: Partial<Product> = { nama: nama.trim(), harga: parseRupiah(harga) }
+    const row: Partial<Product> = { nama: nama.trim(), harga: hv }
     if (foto) {
       const path = `${crypto.randomUUID()}.webp`
       const up = await supabase.storage.from('produk').upload(path, foto, { contentType: 'image/webp' })
@@ -88,46 +100,44 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
 
   return (
     <Modal open onClose={onClose} title={product.id ? 'Edit produk' : 'Tambah produk'}>
-      <form onSubmit={save} className="space-y-4">
-        {error && <Alert tone="bad">{error}</Alert>}
-        <Field label="Nama produk" helper="Contoh: Kebab Sapi Jumbo">
-          <input autoFocus value={nama} onChange={(e) => setNama(e.target.value)} className={inputCls} />
+      <form onSubmit={save} className="flex flex-col gap-4">
+        {error && <Alert>{error}</Alert>}
+        <Field label="Nama produk" htmlFor="pf-nama" helper="Contoh: Kebab Sapi Jumbo">
+          <input id="pf-nama" autoFocus value={nama} onChange={(e) => setNama(e.target.value)} className={inputCls} />
         </Field>
-        <Field label="Harga (Rp)" helper="Contoh: 15000">
-          <input inputMode="numeric" value={harga} onChange={(e) => setHarga(e.target.value)} className={cx(inputCls, 'num')} />
+        <Field label="Harga (Rp)" htmlFor="pf-harga" helper={hv ? `Tampil sebagai ${rupiah(hv)}` : 'Contoh: 15000'}>
+          <input id="pf-harga" inputMode="numeric" value={harga} onChange={(e) => setHarga(e.target.value)} className={cx(inputCls, 'font-bold')} />
         </Field>
-        <Field label="Foto (opsional)" helper="Tampil di link pemesanan. Foto otomatis diperkecil sebelum diunggah.">
-          <div className="flex items-center gap-3">
-            {preview
-              ? <img src={preview} alt="" className="size-20 rounded-xl object-cover" />
-              : <div className="grid size-20 place-items-center rounded-xl bg-surface-2 text-muted"><ImageIcon size={24} aria-hidden /></div>}
-            <div className="flex flex-col gap-2">
-              <input type="file" accept="image/*" onChange={async (e) => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                try {
-                  const blob = await kompresFoto(f)
-                  setFoto(blob)
-                  setHapusFoto(false)
-                  setPreview(URL.createObjectURL(blob))
-                } catch { setError('Foto tidak bisa dibaca. Coba foto lain.') }
-              }} className="block w-full text-sm file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-surface-2 file:px-4 file:font-semibold" />
+        <div className="flex flex-col">
+          <div className="mb-[5px] text-[15px] font-bold">Foto (opsional)</div>
+          <div className="flex items-center gap-4">
+            <ProductPhoto url={preview} size={96} alt="Pratinjau foto produk" />
+            <div className="flex flex-col items-start gap-2">
+              <label className="btn btn-secondary relative bg-bg">
+                {preview ? 'Ganti foto' : 'Pilih foto'}
+                <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" onChange={async (e) => {
+                  const f = e.target.files?.[0]
+                  if (!f) return
+                  try {
+                    const blob = await kompresFoto(f)
+                    setFoto(blob)
+                    setHapusFoto(false)
+                    setPreview(URL.createObjectURL(blob))
+                  } catch { setError('Foto tidak bisa dibaca. Coba foto lain.') }
+                }} />
+              </label>
               {preview && (
-                <button type="button" onClick={() => { setFoto(null); setHapusFoto(true); setPreview(null) }} className="self-start text-sm font-semibold text-bad">
+                <Button variant="ghost" className="min-h-[40px] text-accent-800 hover:text-accent-800"
+                  onClick={() => { setFoto(null); setHapusFoto(true); setPreview(null) }}>
                   Hapus foto
-                </button>
+                </Button>
               )}
             </div>
           </div>
-        </Field>
-        <Button type="submit" disabled={busy} className="w-full">{busy ? 'Menyimpan…' : 'Simpan produk'}</Button>
+          <div className="mt-1 text-sm text-neutral-800">Tampil di link pemesanan. Foto otomatis diperkecil sebelum diunggah.</div>
+        </div>
+        <Button type="submit" disabled={busy} className="min-h-[50px]">{busy ? 'Menyimpan…' : 'Simpan produk'}</Button>
       </form>
     </Modal>
   )
-}
-
-function Thumb({ path }: { path: string | null }) {
-  const url = fotoUrl(path)
-  if (!url) return <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-surface-2 text-muted"><ImageIcon size={20} aria-hidden /></div>
-  return <img src={url} alt="" className="size-14 shrink-0 rounded-xl object-cover" />
 }

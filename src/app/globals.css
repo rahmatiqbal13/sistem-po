@@ -1,77 +1,179 @@
 @import "tailwindcss";
 
-:root {
-  --bg: #f7f6f3;
-  --surface: #ffffff;
-  --surface-2: #f1efea;
-  --border: #e3e0d8;
-  --text: #1c1b19;
-  --muted: #6b675e;
-  --accent: #c2410c;
-  --accent-hover: #9a3412;
-  --accent-soft: #fff1e8;
-  --on-accent: #ffffff;
-  --ok: #15803d;
-  --ok-soft: #e7f6ec;
-  --warn: #a16207;
-  --warn-soft: #fdf5d8;
-  --bad: #b91c1c;
-  --bad-soft: #fde8e8;
+/* Organic design system — token dari "Sistem PO redesign organic" (Claude Design).
+   Token didaftarkan sebagai tema Tailwind, jadi utilitas seperti bg-surface, text-accent-700,
+   bg-sage-200, rounded-card, shadow-lg dan p-4 memakai nilai design system langsung. */
+@theme {
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-ink: #201e1d;
+  --color-accent: #c67139;
+  --color-sage: #7a8a5e;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
+
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
+
+  /* accent-2 (sage) di design system */
+  --color-sage-100: #f0fae1;
+  --color-sage-200: #e1eecc;
+  --color-sage-300: #ccdbb2;
+  --color-sage-400: #aebf92;
+  --color-sage-500: #8fa073;
+  --color-sage-600: #728157;
+  --color-sage-700: #56633f;
+  --color-sage-800: #3d472b;
+  --color-sage-900: #272e1b;
+
+  --font-heading: var(--font-caprasimo), system-ui, sans-serif;
+  --font-sans: var(--font-figtree), system-ui, sans-serif;
+
+  /* Skala spasi design system (density 1.10×): p-1 = 4.4px, p-2 = 8.8px, p-3 = 13.2px,
+     p-4 = 17.6px, p-6 = 26.4px, p-8 = 35.2px. Ukuran kontrol ditulis eksplisit dalam px. */
+  --spacing: 4.4px;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-card: 32.2px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141311;
-    --surface: #1d1c19;
-    --surface-2: #262420;
-    --border: #36332d;
-    --text: #f2efe8;
-    --muted: #a7a196;
-    --accent: #fb923c;
-    --accent-hover: #fdba74;
-    --accent-soft: #3a2416;
-    --on-accent: #1c1b19;
-    --ok: #4ade80;
-    --ok-soft: #13301d;
-    --warn: #facc15;
-    --warn-soft: #34290b;
-    --bad: #f87171;
-    --bad-soft: #3a1717;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
   }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1, h2, h3, h4 { margin: 0; line-height: 1.12; letter-spacing: -0.015em; text-wrap: balance; }
+  h1 { font-family: var(--font-heading); font-weight: 400; font-size: 34px; line-height: 1.15; }
+  @media (min-width: 768px) { h1 { font-size: 42px; } }
+  h2, h3, h4 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.005em; }
+  h2 { font-size: 26px; }
+  h3 { font-size: 25px; }
+  h4 { font-size: 20px; }
+  p, dd, td { text-wrap: pretty; }
+  a { color: var(--color-accent-700); text-underline-offset: 3px; }
+  a:hover { color: var(--color-accent-800); }
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+  input, select, textarea { font-size: 16px; }
+  button { cursor: pointer; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button, .btn { transition-property: background-color, color, border-color, box-shadow, scale; transition-duration: .18s; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+  button:not(:disabled):active, .btn:not(:disabled):active { scale: 0.96; }
 }
 
-@theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-line: var(--border);
-  --color-ink: var(--text);
-  --color-muted: var(--muted);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-soft: var(--accent-soft);
-  --color-on-accent: var(--on-accent);
-  --color-ok: var(--ok);
-  --color-ok-soft: var(--ok-soft);
-  --color-warn: var(--warn);
-  --color-warn-soft: var(--warn-soft);
-  --color-bad: var(--bad);
-  --color-bad-soft: var(--bad-soft);
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+@layer components {
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    text-decoration: none; white-space: nowrap;
+    font-family: var(--font-sans); font-weight: 700; font-size: 16px; line-height: 1.2; letter-spacing: 0.01em;
+    color: var(--color-ink); background: transparent; border: 1px solid transparent;
+    padding: 8.8px 16px; border-radius: 999px; min-height: 44px;
+  }
+  .btn:hover { color: var(--color-ink); }
+  .btn-primary, .btn-primary:hover { background: var(--color-accent); color: var(--color-bg); }
+  .btn-primary:hover { background: var(--color-accent-600); }
+  .btn-primary:active { background: var(--color-accent-700); }
+  .btn-secondary { border-color: var(--color-divider); }
+  .btn-secondary:hover { background: color-mix(in srgb, var(--color-ink) 7%, transparent); }
+  .btn-secondary:active { background: color-mix(in srgb, var(--color-ink) 14%, transparent); }
+  .btn-ghost, .btn-ghost:hover { color: var(--color-accent-700); padding-inline: 12px; }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+  .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+  .btn-icon { width: 44px; height: 44px; padding: 0; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .input {
+    width: 100%; min-height: 46px; padding: 6px 14px; font: inherit; font-size: 16px;
+    color: var(--color-ink); caret-color: var(--color-accent);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-divider); border-radius: 999px;
+  }
+  .input:hover { border-color: color-mix(in srgb, var(--color-ink) 45%, transparent); }
+  .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+  .input[aria-invalid="true"] { border-color: var(--color-accent-700); }
+  .input:disabled { opacity: 0.45; }
+  textarea.input { min-height: 90px; resize: vertical; border-radius: var(--radius-lg); padding: 12px 16px; }
+  select.input {
+    appearance: none; padding-right: 36px; font-weight: 600;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23201e1d' stroke-width='2.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+  }
+
+  .tag {
+    display: inline-flex; align-items: center; white-space: nowrap;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4;
+    padding: 3px 10px; border-radius: 999px;
+  }
+
+  .dialog-backdrop {
+    position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; overflow-y: auto;
+    padding: 17.6px;
+    background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  }
+  .dialog {
+    width: min(480px, 100%); display: flex; flex-direction: column; gap: 17.6px;
+    padding: 26.4px; border-radius: var(--radius-card);
+    background: var(--color-surface); box-shadow: var(--shadow-lg);
+  }
+
+  .table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .table th {
+    text-align: left; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+    color: var(--color-neutral-800); padding: 13.2px; border-bottom: 1px solid var(--color-divider);
+  }
+  .table td { padding: 13.2px; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 8%, transparent); }
+  .table tbody tr:last-child td { border-bottom: 0; }
+  .table tbody tr:hover { background: color-mix(in srgb, var(--color-ink) 4%, transparent); }
+  .table tr[tabindex]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+  /* Foto produk "dicuci" agar menyatu dengan latar hangat */
+  .washed { filter: saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94); }
+
+  .skip {
+    position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 18px; border-radius: 999px;
+    background: var(--color-accent-700); color: var(--color-accent-100); font-weight: 700; text-decoration: none;
+  }
+  .skip:focus-visible { top: 12px; color: var(--color-accent-100); }
 }
 
-html { font-size: 16px; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  -webkit-tap-highlight-color: transparent;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
+  button:active, .btn:active { scale: 1 !important; }
 }
-
-input, select, textarea { font-size: 16px; }
-
-.num { font-variant-numeric: tabular-nums; }
 
 @media print {
   .no-print { display: none !important; }

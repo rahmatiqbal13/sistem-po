@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function PoLayout({ children }: LayoutProps<'/po'>) {
-  return <Suspense fallback={<div className="py-16 text-center text-muted">Memuat…</div>}>{children}</Suspense>
+  return <Suspense fallback={<div className="py-16 text-center text-neutral-800">Memuat…</div>}>{children}</Suspense>
 }
