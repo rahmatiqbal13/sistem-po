@@ -55,7 +55,7 @@ function Shell({ children }: { children: ReactNode }) {
       <a className="skip" href="#konten">Langsung ke konten</a>
 
       {/* Bar atas HP */}
-      <div className="no-print sticky top-0 z-30 flex items-center gap-2.5 bg-bg px-4 pb-3 pt-[calc(13.2px+env(safe-area-inset-top))] shadow-sm md:hidden">
+      <div className="no-print sticky top-0 z-30 flex items-center gap-2.5 bg-bg [@media(max-height:500px)]:static px-4 pb-3 pt-[calc(13.2px+env(safe-area-inset-top))] shadow-sm md:hidden">
         <Logo size="sm" />
         <div className="flex-1 font-heading text-[19px]">PO Jajanan</div>
         <Link href="/pengaturan" aria-label="Pengaturan toko"

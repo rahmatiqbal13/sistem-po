@@ -162,7 +162,7 @@ export default function PesananPage() {
             className={cx('flex flex-col gap-0.5 rounded-card border-2 p-4 text-left md:pl-6',
               c.active ? 'border-accent bg-accent-100' : 'border-transparent bg-surface hover:bg-accent-100')}>
             <span className="text-sm font-semibold text-neutral-800">{c.label}</span>
-            <span className={cx('whitespace-nowrap text-xl font-bold leading-tight md:text-[26px]', c.tone)}>{c.value}</span>
+            <span className={cx('whitespace-nowrap text-[clamp(14px,4.4vw,20px)] font-bold leading-tight md:text-[26px]', c.tone)}>{c.value}</span>
             <span className="text-sm text-neutral-800">{c.sub}</span>
           </button>
         ))}
@@ -244,7 +244,7 @@ export default function PesananPage() {
               const batal = o.status === 'dibatalkan'
               return (
                 <Link key={o.id} href={`/pesanan/${o.id}`} onClick={rememberList}
-                  className={cx('flex flex-col gap-3 rounded-card py-4 pl-6 pr-4 text-ink no-underline hover:bg-accent-100 hover:text-ink', batal ? 'bg-neutral-200' : 'bg-surface')}>
+                  className={cx('flex flex-col gap-3 rounded-card py-4 pl-6 pr-4 text-ink no-underline transition-[background-color,scale] hover:bg-accent-100 hover:text-ink active:scale-[0.98] active:bg-accent-100', batal ? 'bg-neutral-200' : 'bg-surface')}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-[19px] font-bold leading-tight">{o.customer_nama}</div>

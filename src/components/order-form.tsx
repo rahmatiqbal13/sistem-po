@@ -149,7 +149,13 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       setError(firstErr)
       setConfirmOver(false)
       setStep(errs.customer || errs.batch ? 0 : errs.items ? 1 : 2)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      const id = errs.customer ? (document.getElementById('nb-nama') ? 'nb-nama' : 'nb-cari') : errs.batch ? 'nb-batch' : errs.items ? 'h-item' : 'nb-alamat'
+      // Tunggu langkah (HP) tampil, lalu arahkan ke kolomnya
+      setTimeout(() => {
+        const el = document.getElementById(id)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el?.focus({ preventScroll: true })
+      }, 50)
       return
     }
     if (overQuota.length && !force) {
@@ -237,69 +243,25 @@ export function OrderForm({ orderId }: { orderId?: string }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="flex min-w-0 flex-[1_1_380px] flex-col gap-4">
-          {/* 1. Pembeli */}
-          <section aria-labelledby="h-pembeli" className={cx(SECTION, showStep(0))}>
-            <h2 id="h-pembeli" className="text-xl">1. Pembeli</h2>
-            <CustomerPicker value={customer} onChange={(c) => { setCustomer(c); setError('') }} error={shown.customer} />
-            <Field label="Batch PO" htmlFor="nb-batch"
-              error={batch && batch.status !== 'buka' ? `Batch “${batch.nama}” sedang tidak berstatus Buka.` : shown.batch}>
-              <select id="nb-batch" value={batchId} onChange={(e) => { setBatchId(e.target.value); if (!orderId) setTglAmbil(null) }} className={inputCls}>
-                {!batchId && <option value="">Pilih batch</option>}
-                {batches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
-              </select>
-            </Field>
-          </section>
-
-          {/* 3. Cara terima */}
-          <section aria-labelledby="h-cara" className={cx(SECTION, showStep(2))}>
-            <h2 id="h-cara" className="text-xl">3. Cara terima</h2>
-            <div role="radiogroup" aria-labelledby="h-cara" className="grid grid-cols-3 gap-1.5">
-              {(Object.keys(CARA_TERIMA) as CaraTerima[]).map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
-                  className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
-                    cara === c ? 'border-accent bg-accent-200 text-accent-900' : 'border-divider bg-bg text-ink')}>
-                  {CARA_TERIMA[c]}
-                </button>
-              ))}
-            </div>
-            {cara !== 'pickup' && (
-              <>
-                <Field label="Alamat" htmlFor="nb-alamat" helper="Wajib untuk pengantaran." error={shown.alamat} required>
-                  <textarea id="nb-alamat" rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)}
-                    aria-invalid={!!shown.alamat} className={inputCls} />
-                </Field>
-                <Field label="Ongkir (Rp)" htmlFor="nb-ongkir" helper="Diisi manual. Contoh: 10000">
-                  <input id="nb-ongkir" inputMode="numeric" value={ongkir} onChange={(e) => setOngkir(e.target.value)} className={inputCls} />
-                </Field>
-              </>
-            )}
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-              <Field label="Tanggal ambil/antar" htmlFor="nb-tgl">
-                <input id="nb-tgl" type="date" value={tglAmbil} onChange={(e) => setTglAmbil(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Jam (opsional)" htmlFor="nb-jam">
-                <input id="nb-jam" type="time" value={jamAmbil} onChange={(e) => setJamAmbil(e.target.value)} className={inputCls} />
-              </Field>
-            </div>
-            <Field label="Catatan pesanan (opsional)" htmlFor="nb-cat">
-              <textarea id="nb-cat" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)} className={inputCls} />
-            </Field>
-            {orderId && !isSelesai && (
-              <Field label="Status pesanan" htmlFor="nb-status">
-                <select id="nb-status" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className={inputCls}>
-                  {Object.entries(ORDER_STATUS).filter(([v]) => v !== 'selesai').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </Field>
-            )}
-          </section>
-        </div>
+      {/* Urutan kode 1 → 2 → 3 (urutan Tab & pembaca layar); di layar lebar Item pindah ke kolom kanan */}
+      <div className="grid items-start gap-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr]">
+        {/* 1. Pembeli */}
+        <section aria-labelledby="h-pembeli" className={cx(SECTION, showStep(0), 'xl:col-start-1 xl:row-start-1')}>
+          <h2 id="h-pembeli" className="text-xl">1. Pembeli</h2>
+          <CustomerPicker value={customer} onChange={(c) => { setCustomer(c); setError('') }} error={shown.customer} />
+          <Field label="Batch PO" htmlFor="nb-batch"
+            error={batch && batch.status !== 'buka' ? `Batch “${batch.nama}” sedang tidak berstatus Buka.` : shown.batch}>
+            <select id="nb-batch" value={batchId} onChange={(e) => { setBatchId(e.target.value); if (!orderId) setTglAmbil(null) }} className={inputCls}>
+              {!batchId && <option value="">Pilih batch</option>}
+              {batches.map((b) => <option key={b.id} value={b.id}>{b.nama}</option>)}
+            </select>
+          </Field>
+        </section>
 
         {/* 2. Item */}
-        <section aria-labelledby="h-item" className={cx(SECTION, 'min-w-0 flex-[1_1_420px]', showStep(1))}>
+        <section aria-labelledby="h-item" className={cx(SECTION, 'min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1', showStep(1))}>
           <div className="flex items-baseline justify-between gap-2">
-            <h2 id="h-item" className="text-xl">2. Item</h2>
+            <h2 id="h-item" tabIndex={-1} className="text-xl">2. Item</h2>
             {totalQty > 0 && <span className="text-sm text-neutral-800">{totalQty} item dipilih</span>}
           </div>
           {shown.items && <div role="alert" className="text-[15px] font-bold text-accent-800">{shown.items}</div>}
@@ -316,16 +278,16 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                 const harga = line?.harga ?? Number(p.harga)
                 return (
                   <div key={p.id} className="flex flex-col gap-2 border-b border-divider py-3 last:border-0">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <ProductPhoto url={fotoUrl(p.foto_path)} size={52} />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-[140px] flex-1">
                         <div className="font-bold leading-snug">{p.nama}{!p.aktif && ' (nonaktif)'}</div>
                         <div className="text-sm text-neutral-800">
                           {rupiah(harga)}
                           {sisa !== null && <span className={cx(over && 'font-bold text-accent-800')}> · sisa kuota {Math.max(sisa - qty, 0)}</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="ml-auto flex items-center gap-1">
                         <button type="button" onClick={() => setQty(p, qty - 1)} disabled={qty === 0} aria-label={`Kurangi ${p.nama}`}
                           className="grid size-[44px] place-items-center rounded-full border border-divider bg-bg text-ink hover:bg-neutral-200">
                           <Minus size={18} {...ICON} />
@@ -349,6 +311,49 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                 )
               })}
             </div>
+          )}
+        </section>
+
+        {/* 3. Cara terima */}
+        <section aria-labelledby="h-cara" className={cx(SECTION, showStep(2), 'xl:col-start-1 xl:row-start-2')}>
+          <h2 id="h-cara" className="text-xl">3. Cara terima</h2>
+          <div role="radiogroup" aria-labelledby="h-cara" className="grid grid-cols-3 gap-1.5">
+            {(Object.keys(CARA_TERIMA) as CaraTerima[]).map((c) => (
+              <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
+                className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
+                  cara === c ? 'border-accent bg-accent-200 text-accent-900' : 'border-divider bg-bg text-ink')}>
+                {CARA_TERIMA[c]}
+              </button>
+            ))}
+          </div>
+          {cara !== 'pickup' && (
+            <>
+              <Field label="Alamat" htmlFor="nb-alamat" helper="Wajib untuk pengantaran." error={shown.alamat} required>
+                <textarea id="nb-alamat" rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)}
+                  aria-invalid={!!shown.alamat} className={inputCls} />
+              </Field>
+              <Field label="Ongkir (Rp)" htmlFor="nb-ongkir" helper="Diisi manual. Contoh: 10000">
+                <input id="nb-ongkir" inputMode="numeric" value={ongkir} onChange={(e) => setOngkir(e.target.value)} className={inputCls} />
+              </Field>
+            </>
+          )}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+            <Field label="Tanggal ambil/antar" htmlFor="nb-tgl">
+              <input id="nb-tgl" type="date" value={tglAmbil} onChange={(e) => setTglAmbil(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="Jam (opsional)" htmlFor="nb-jam">
+              <input id="nb-jam" type="time" value={jamAmbil} onChange={(e) => setJamAmbil(e.target.value)} className={inputCls} />
+            </Field>
+          </div>
+          <Field label="Catatan pesanan (opsional)" htmlFor="nb-cat">
+            <textarea id="nb-cat" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)} className={inputCls} />
+          </Field>
+          {orderId && !isSelesai && (
+            <Field label="Status pesanan" htmlFor="nb-status">
+              <select id="nb-status" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className={inputCls}>
+                {Object.entries(ORDER_STATUS).filter(([v]) => v !== 'selesai').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
           )}
         </section>
       </div>

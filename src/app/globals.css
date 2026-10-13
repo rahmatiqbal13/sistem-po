@@ -61,6 +61,7 @@
 
 @layer base {
   html {
+    color-scheme: light;
     /* Elemen yang menempel (bar atas, navigasi bawah, bar total) tidak boleh menutupi kolom yang difokus */
     scroll-padding-top: 88px;
     scroll-padding-bottom: 180px;

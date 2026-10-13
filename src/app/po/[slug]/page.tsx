@@ -167,16 +167,16 @@ export default function PemesananPage() {
                 return (
                   <div key={p.id} className={cx('flex flex-col gap-3 rounded-card py-3 pl-3 pr-4 outline-2 -outline-offset-2',
                     n > 0 ? 'outline-accent' : 'outline-transparent', habis ? 'bg-neutral-200' : 'bg-surface')}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <ProductPhoto url={fotoUrl(p.foto_path)} size={88} alt={p.nama} />
-                      <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex min-w-[140px] flex-1 flex-col">
                         <div className="text-lg font-bold leading-snug">{p.nama}</div>
                         <div className="font-bold text-accent-700">{rupiah(p.harga)}</div>
                         {p.sisa !== null && (
                           <div className={cx('text-[15px]', habis ? 'font-bold text-accent-800' : 'text-neutral-800')}>{habis ? 'Habis' : `Sisa ${p.sisa}`}</div>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="ml-auto flex items-center gap-1.5">
                         {n > 0 && (
                           <>
                             <button type="button" onClick={() => ubah(p, n - 1)} aria-label={`Kurangi ${p.nama}`}
