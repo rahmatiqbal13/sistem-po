@@ -1,5 +1,6 @@
 -- Sistem PO Jajanan — skema database
--- Jalankan sekali di Supabase SQL Editor (aman dijalankan ulang untuk objek "or replace").
+-- Jalankan di Supabase SQL Editor. Aman dijalankan ulang: menjalankan versi terbaru file ini
+-- juga meng-upgrade database yang dibuat dengan versi sebelumnya.
 -- Semua nominal disimpan sebagai bilangan bulat Rupiah (bigint).
 
 -- ============================================================
@@ -85,11 +86,51 @@ create table if not exists payments (
 );
 create index if not exists payments_order_idx on payments (order_id);
 
+create table if not exists pengaturan (
+  id integer primary key default 1 check (id = 1),
+  nama_toko text not null default 'PO Jajanan',
+  wa_admin text,
+  info_pembayaran text
+);
+insert into pengaturan (id) values (1) on conflict (id) do nothing;
+
+-- ============================================================
+-- Upgrade v2: link pemesanan pembeli & foto produk
+-- ============================================================
+
+-- Baris di batch_product_quotas = produk yang dijual di batch; kuota null = tanpa batas
+alter table batch_product_quotas alter column kuota drop not null;
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'orders' and column_name = 'sumber') then
+    -- Batch lama belum punya daftar produk yang dijual: anggap semua produk aktif dijual
+    insert into batch_product_quotas (batch_id, product_id, kuota)
+    select b.id, p.id, null from po_batches b cross join products p
+    where p.aktif and not exists (select 1 from batch_product_quotas q where q.batch_id = b.id)
+    on conflict do nothing;
+  end if;
+end $$;
+
+alter table products add column if not exists foto_path text;
+
+alter table po_batches add column if not exists slug text;
+alter table po_batches add column if not exists info_pembeli text;
+alter table po_batches alter column slug set default 'po-' || substr(md5(gen_random_uuid()::text), 1, 8);
+update po_batches set slug = 'po-' || substr(md5(id::text), 1, 8) where slug is null;
+create unique index if not exists po_batches_slug_idx on po_batches (slug);
+
+alter table orders add column if not exists sumber text not null default 'admin';
+alter table orders drop constraint if exists orders_sumber_check;
+alter table orders add constraint orders_sumber_check check (sumber in ('admin', 'link'));
+
 -- ============================================================
 -- View ringkasan pesanan: total & status bayar dihitung, tidak disimpan
 -- ============================================================
 
-create or replace view order_summary with (security_invoker = true) as
+drop view if exists order_summary;
+create view order_summary with (security_invoker = true) as
 select
   o.*,
   c.nama as customer_nama,
@@ -249,11 +290,12 @@ alter table batch_product_quotas enable row level security;
 alter table orders enable row level security;
 alter table order_items enable row level security;
 alter table payments enable row level security;
+alter table pengaturan enable row level security;
 
 do $$
 declare t text;
 begin
-  foreach t in array array['customers','products','po_batches','batch_product_quotas','orders','order_items','payments'] loop
+  foreach t in array array['customers','products','po_batches','batch_product_quotas','orders','order_items','payments','pengaturan'] loop
     execute format('drop policy if exists pemilik_all on %I', t);
     execute format('create policy pemilik_all on %I for all to authenticated using (true) with check (true)', t);
   end loop;
@@ -275,3 +317,205 @@ on conflict (id) do nothing;
 drop policy if exists bukti_pemilik on storage.objects;
 create policy bukti_pemilik on storage.objects for all to authenticated
   using (bucket_id = 'bukti') with check (bucket_id = 'bukti');
+
+-- Bucket publik untuk foto produk (dibaca siapa saja, ditulis hanya pemilik)
+insert into storage.buckets (id, name, public)
+values ('produk', 'produk', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists produk_pemilik on storage.objects;
+create policy produk_pemilik on storage.objects for all to authenticated
+  using (bucket_id = 'produk') with check (bucket_id = 'produk');
+
+-- ============================================================
+-- Link pemesanan publik (tanpa login)
+-- Pembeli TIDAK punya akses tabel. Mereka hanya bisa memanggil dua fungsi di bawah,
+-- yang berjalan sebagai pemilik (security definer) dan memvalidasi semuanya di server.
+-- ============================================================
+
+-- 0812-3456 / +62 812 3456 / 812... → 628123456
+create or replace function norm_wa(s text)
+returns text language sql immutable as $$
+  select case
+    when d = '' then null
+    when d like '0%' then '62' || substr(d, 2)
+    when d like '8%' then '62' || d
+    else d
+  end
+  from (select regexp_replace(coalesce(s, ''), '\D', '', 'g') as d) x
+$$;
+
+create or replace function batch_terbuka(b po_batches)
+returns boolean language sql stable as $$
+  select b.status = 'buka'
+    and (b.tanggal_tutup is null or b.tanggal_tutup >= (now() at time zone 'Asia/Jakarta')::date)
+$$;
+
+create or replace function get_public_batch(p_slug text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  b po_batches%rowtype;
+  s pengaturan%rowtype;
+begin
+  select * into b from po_batches where slug = p_slug;
+  if not found then
+    return null;
+  end if;
+  select * into s from pengaturan where id = 1;
+
+  return jsonb_build_object(
+    'nama', b.nama,
+    'terbuka', batch_terbuka(b),
+    'tanggal_tutup', b.tanggal_tutup,
+    'tanggal_ambil', b.tanggal_ambil,
+    'info_pembeli', b.info_pembeli,
+    'nama_toko', s.nama_toko,
+    'wa_admin', norm_wa(s.wa_admin),
+    'info_pembayaran', s.info_pembayaran,
+    'produk', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', p.id, 'nama', p.nama, 'harga', p.harga, 'foto_path', p.foto_path,
+        'sisa', case when q.kuota is null then null else greatest(q.kuota - coalesce(u.qty, 0), 0) end
+      ) order by p.nama)
+      from batch_product_quotas q
+      join products p on p.id = q.product_id and p.aktif
+      left join (
+        select oi.product_id, sum(oi.qty) as qty
+        from order_items oi join orders o on o.id = oi.order_id
+        where o.batch_id = b.id and o.status <> 'dibatalkan'
+        group by oi.product_id
+      ) u on u.product_id = p.id
+      where q.batch_id = b.id
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- payload: { nama, no_wa, cara_terima, alamat, catatan, items: [{ product_id, qty, catatan }] }
+create or replace function submit_public_order(p_slug text, payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  b po_batches%rowtype;
+  v_nama text := left(trim(coalesce(payload->>'nama', '')), 80);
+  v_wa text := norm_wa(payload->>'no_wa');
+  v_cara text := coalesce(payload->>'cara_terima', 'pickup');
+  v_alamat text := nullif(trim(coalesce(payload->>'alamat', '')), '');
+  v_catatan text := nullif(trim(coalesce(payload->>'catatan', '')), '');
+  v_cust customers%rowtype;
+  v_order uuid;
+  v_item jsonb;
+  v_p record;
+  v_qty integer;
+  v_used integer;
+  v_total_qty integer := 0;
+  v_subtotal bigint := 0;
+  v_items jsonb := '[]'::jsonb;
+  v_recent integer;
+begin
+  -- Kunci baris batch agar pengecekan kuota tidak balapan antar pembeli
+  select * into b from po_batches where slug = p_slug for update;
+  if not found then
+    raise exception 'PO tidak ditemukan.';
+  end if;
+  if not batch_terbuka(b) then
+    raise exception 'PO ini sudah ditutup.';
+  end if;
+
+  if length(v_nama) < 2 then
+    raise exception 'Nama wajib diisi.';
+  end if;
+  if v_wa is null or length(v_wa) not between 10 and 15 then
+    raise exception 'Nomor WhatsApp tidak valid.';
+  end if;
+  if v_cara not in ('pickup', 'antar', 'kurir') then
+    raise exception 'Cara terima tidak valid.';
+  end if;
+  if v_cara <> 'pickup' and v_alamat is null then
+    raise exception 'Alamat wajib diisi untuk pengantaran.';
+  end if;
+  if length(coalesce(v_alamat, '')) > 300 or length(coalesce(v_catatan, '')) > 300 then
+    raise exception 'Alamat atau catatan terlalu panjang.';
+  end if;
+  if jsonb_typeof(payload->'items') <> 'array'
+     or jsonb_array_length(payload->'items') not between 1 and 20 then
+    raise exception 'Pilih minimal 1 produk.';
+  end if;
+
+  -- Pembeli dikenali dari nomor WA; pembeli lama tidak diubah datanya
+  select * into v_cust from customers where norm_wa(no_wa) = v_wa order by created_at limit 1;
+  if not found then
+    insert into customers (nama, no_wa) values (v_nama, v_wa) returning * into v_cust;
+  elsif lower(v_cust.nama) <> lower(v_nama) then
+    v_catatan := concat_ws(E'\n', v_catatan, 'Nama di link: ' || v_nama);
+  end if;
+
+  select count(*) into v_recent from orders
+  where customer_id = v_cust.id and batch_id = b.id and sumber = 'link'
+    and created_at > now() - interval '1 hour';
+  if v_recent >= 3 then
+    raise exception 'Terlalu banyak pesanan dari nomor ini. Silakan hubungi kami lewat WhatsApp.';
+  end if;
+
+  insert into orders (batch_id, customer_id, cara_terima, alamat, ongkir, tanggal_ambil, status,
+                      catatan, sumber, created_by, updated_by)
+  values (b.id, v_cust.id, v_cara, case when v_cara = 'pickup' then null else v_alamat end, 0,
+          b.tanggal_ambil, 'baru', v_catatan, 'link', 'link pemesanan', 'link pemesanan')
+  returning id into v_order;
+
+  for v_item in select * from jsonb_array_elements(payload->'items') loop
+    v_qty := nullif(v_item->>'qty', '')::integer;
+    if v_qty is null or v_qty < 1 or v_qty > 50 then
+      raise exception 'Jumlah per produk harus 1–50.';
+    end if;
+
+    select p.id, p.nama, p.harga, q.kuota into v_p
+    from batch_product_quotas q join products p on p.id = q.product_id and p.aktif
+    where q.batch_id = b.id and q.product_id = nullif(v_item->>'product_id', '')::uuid;
+    if not found then
+      raise exception 'Ada produk yang tidak tersedia di PO ini. Muat ulang halaman.';
+    end if;
+
+    if v_p.kuota is not null then
+      select coalesce(sum(oi.qty), 0) into v_used
+      from order_items oi join orders o on o.id = oi.order_id
+      where o.batch_id = b.id and o.status <> 'dibatalkan' and oi.product_id = v_p.id;
+      if v_used + v_qty > v_p.kuota then
+        raise exception 'Maaf, % tinggal %.', v_p.nama, greatest(v_p.kuota - v_used, 0);
+      end if;
+    end if;
+
+    insert into order_items (order_id, product_id, nama_produk_snapshot, harga_snapshot, qty, catatan)
+    values (v_order, v_p.id, v_p.nama, v_p.harga, v_qty,
+            left(nullif(trim(coalesce(v_item->>'catatan', '')), ''), 100));
+
+    v_subtotal := v_subtotal + v_p.harga * v_qty;
+    v_total_qty := v_total_qty + v_qty;
+    v_items := v_items || jsonb_build_object('nama', v_p.nama, 'qty', v_qty, 'harga', v_p.harga);
+  end loop;
+
+  if v_total_qty > 100 then
+    raise exception 'Total pesanan maksimal 100 pcs. Untuk pesanan besar, hubungi kami lewat WhatsApp.';
+  end if;
+
+  return jsonb_build_object(
+    'kode', upper(substr(v_order::text, 1, 6)),
+    'nama', v_nama,
+    'subtotal', v_subtotal,
+    'items', v_items
+  );
+end;
+$$;
+
+revoke all on function get_public_batch(text) from public;
+revoke all on function submit_public_order(text, jsonb) from public;
+grant execute on function get_public_batch(text) to anon, authenticated;
+grant execute on function submit_public_order(text, jsonb) to anon, authenticated;

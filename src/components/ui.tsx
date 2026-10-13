@@ -137,3 +137,18 @@ export function Chip({ children, onRemove }: { children: ReactNode; onRemove: ()
     </span>
   )
 }
+
+/** Label kecil: asal pesanan & kemungkinan pesanan ganda */
+export function OrderTags({ sumber, ganda }: { sumber: 'admin' | 'link'; ganda?: boolean }) {
+  if (sumber !== 'link' && !ganda) return null
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {sumber === 'link' && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-xs font-semibold text-accent">Dari link</span>}
+      {ganda && <span className="rounded-md bg-warn-soft px-1.5 py-0.5 text-xs font-semibold text-warn" title="Pembeli ini punya lebih dari 1 pesanan aktif di batch ini">Cek ganda</span>}
+    </span>
+  )
+}
+
+export function kodePesanan(id: string) {
+  return '#' + id.slice(0, 6).toUpperCase()
+}

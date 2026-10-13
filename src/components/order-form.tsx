@@ -106,6 +106,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
   const batch = batches.find((b) => b.id === batchId)
 
   const overQuota = useMemo(() => quotas.flatMap((q) => {
+    if (q.kuota == null) return []
     const qty = lines[q.product_id]?.qty ?? 0
     const sisa = q.kuota - (used[q.product_id] ?? 0)
     return qty > 0 && qty > sisa ? [{ nama: lines[q.product_id].nama, sisa: Math.max(sisa, 0), qty }] : []
@@ -233,7 +234,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                 const line = lines[p.id]
                 const qty = line?.qty ?? 0
                 const q = quotas.find((x) => x.product_id === p.id)
-                const sisa = q ? q.kuota - (used[p.id] ?? 0) : null
+                const sisa = q?.kuota != null ? q.kuota - (used[p.id] ?? 0) : null
                 const harga = line?.harga ?? p.harga
                 return (
                   <div key={p.id} className="p-3">

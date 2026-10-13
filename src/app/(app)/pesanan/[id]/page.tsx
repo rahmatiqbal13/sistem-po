@@ -11,7 +11,8 @@ import { kelebihanBayar } from '@/lib/calc'
 import { setOrderStatus, terimaTunaiSelesai } from '@/lib/data'
 import { errMsg, jam, parseRupiah, rupiah, tanggal, today } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
-import { Alert, BayarBadge, Button, Card, Field, Loading, Modal, OrderStatusBadge, cx, inputCls } from '@/components/ui'
+import { Alert, BayarBadge, Button, Card, Field, Loading, Modal, OrderStatusBadge, OrderTags, cx, inputCls, kodePesanan } from '@/components/ui'
+import { normWa } from '@/lib/foto'
 
 const FLOW: OrderStatus[] = ['baru', 'dikonfirmasi', 'diproduksi', 'siap', 'selesai']
 
@@ -77,7 +78,7 @@ export default function PesananDetailPage() {
   const selesai = order.status === 'selesai'
   const lebih = kelebihanBayar(Number(order.total), Number(order.terbayar))
   const batch = batches.find((b) => b.id === order.batch_id)
-  const waLink = order.customer_wa ? `https://wa.me/${order.customer_wa.replace(/\D/g, '').replace(/^0/, '62')}` : null
+  const waLink = order.customer_wa ? `https://wa.me/${normWa(order.customer_wa)}` : null
 
   return (
     <div className="space-y-4">
@@ -96,7 +97,9 @@ export default function PesananDetailPage() {
           {order.customer_wa && <span>{order.customer_wa}</span>}
           {waLink && <a href={waLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-semibold text-accent"><MessageCircle size={16} aria-hidden />Buka chat</a>}
           {batch && <span>· {batch.nama}</span>}
+          <span>· {kodePesanan(order.id)}</span>
         </div>
+        <div className="mt-2"><OrderTags sumber={order.sumber} /></div>
       </div>
 
       {error && <Alert tone="bad">{error}</Alert>}

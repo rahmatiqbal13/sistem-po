@@ -11,7 +11,7 @@ import { exportOrders } from '@/lib/export'
 import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
-import { Alert, BayarBadge, Button, Card, Chip, Empty, LinkButton, Loading, OrderStatusBadge, PageHeader, cx, inputCls } from '@/components/ui'
+import { Alert, BayarBadge, Button, Card, Chip, Empty, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, cx, inputCls, kodePesanan } from '@/components/ui'
 
 type BayarFilter = '' | 'belum' | 'dp' | 'lunas' | 'belum_lunas'
 const BAYAR_LABEL: Record<Exclude<BayarFilter, ''>, string> = { ...STATUS_BAYAR, belum_lunas: 'Belum lunas' }
@@ -61,6 +61,13 @@ export default function PesananPage() {
 
   const sum = useMemo(() => ringkasan(orders ?? []), [orders])
   const rekap = useMemo(() => rekapProduksi(items), [items])
+  // Pembeli dengan >1 pesanan aktif di batch: mungkin pesan lewat link dan chat sekaligus
+  const ganda = useMemo(() => {
+    const count = new Map<string, number>()
+    for (const o of orders ?? []) if (o.status !== 'dibatalkan') count.set(o.customer_id, (count.get(o.customer_id) ?? 0) + 1)
+    return new Set([...count].filter(([, n]) => n > 1).map(([id]) => id))
+  }, [orders])
+  const linkBaru = (orders ?? []).filter((o) => o.sumber === 'link' && o.status === 'baru').length
   const pages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   // Halaman kembali ke 1 setiap kali filter atau batch berubah
   const filterKey = [batchId, q, bayar, status, cara].join('|')
@@ -96,6 +103,12 @@ export default function PesananPage() {
         action={<div className="w-full md:w-auto"><BatchPicker /></div>} />
 
       {error && <div className="mb-4"><Alert tone="bad">{error}</Alert></div>}
+      {linkBaru > 0 && status !== 'baru' && (
+        <button type="button" onClick={() => { setQ(''); setBayar(''); setCara(''); setStatus('baru') }}
+          className="mb-4 flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl bg-accent-soft px-4 text-left font-semibold text-accent">
+          <span>{linkBaru} pesanan baru dari link menunggu dikonfirmasi</span><span aria-hidden>→</span>
+        </button>
+      )}
 
       {/* 1. Kartu ringkasan */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -172,6 +185,7 @@ export default function PesananPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-semibold">{o.customer_nama}</div>
+                    <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
                     <div className="text-sm text-muted">
                       {CARA_TERIMA[o.cara_terima]} · {tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })}{o.jam_ambil ? ` ${jam(o.jam_ambil)}` : ''}
                     </div>
@@ -209,7 +223,8 @@ export default function PesananPage() {
                     className={cx('cursor-pointer border-b border-line last:border-0 even:bg-surface-2/50 hover:bg-accent-soft', o.status === 'dibatalkan' && 'text-muted')}>
                     <td className="sticky left-0 bg-inherit px-4 py-3">
                       <Link href={`/pesanan/${o.id}`} className="font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>{o.customer_nama}</Link>
-                      <div className="text-sm text-muted">{o.customer_wa}</div>
+                      <div className="text-sm text-muted">{o.customer_wa} · {kodePesanan(o.id)}</div>
+                      <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}</td>
                     <td className="whitespace-nowrap px-4 py-3">{CARA_TERIMA[o.cara_terima]}</td>

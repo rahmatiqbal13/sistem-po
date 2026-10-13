@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
+  // Halaman pemesanan untuk pembeli: publik, tanpa login
+  if (request.nextUrl.pathname.startsWith('/po/')) return NextResponse.next()
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(

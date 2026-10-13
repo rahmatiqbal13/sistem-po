@@ -8,7 +8,9 @@ const eslintConfig = defineConfig([
   {
     // Halaman memuat data lewat fungsi load() async yang juga dipanggil ulang setelah
     // mutasi; setState di dalamnya terjadi setelah await, bukan sinkron di effect.
-    rules: { "react-hooks/set-state-in-effect": "off" },
+    // Foto produk sudah dikompres di browser sebelum diunggah, jadi <img> biasa cukup
+    // (tanpa biaya optimasi gambar Vercel).
+    rules: { "react-hooks/set-state-in-effect": "off", "@next/next/no-img-element": "off" },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

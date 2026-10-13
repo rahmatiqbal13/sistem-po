@@ -5,18 +5,23 @@ export type StatusBayar = 'belum' | 'dp' | 'lunas'
 export type Metode = 'transfer' | 'ewallet' | 'tunai'
 
 export interface Customer { id: string; nama: string; no_wa: string | null; catatan: string | null }
-export interface Product { id: string; nama: string; harga: number; aktif: boolean }
+export interface Product { id: string; nama: string; harga: number; aktif: boolean; foto_path: string | null }
 export interface Batch {
   id: string; nama: string; status: BatchStatus
   tanggal_buka: string | null; tanggal_tutup: string | null; tanggal_ambil: string | null
+  slug: string; info_pembeli: string | null
 }
-export interface Quota { batch_id: string; product_id: string; kuota: number }
+/** Produk yang dijual di batch; kuota null = tanpa batas */
+export interface Quota { batch_id: string; product_id: string; kuota: number | null }
+
+export interface Pengaturan { nama_toko: string; wa_admin: string | null; info_pembayaran: string | null }
 
 export interface Order {
   id: string; batch_id: string; customer_id: string
   cara_terima: CaraTerima; alamat: string | null; ongkir: number
   tanggal_ambil: string | null; jam_ambil: string | null
   status: OrderStatus; catatan: string | null
+  sumber: 'admin' | 'link'
   created_by: string | null; updated_by: string | null
   created_at: string; updated_at: string
 }

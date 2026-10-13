@@ -18,7 +18,19 @@ Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Postgre
    ```
    Buka http://localhost:3000 dan login.
 
-Urutan pemakaian pertama: **Produk** (isi katalog) → **Batch** (buat batch berstatus Buka) → **+ Pesanan Baru**.
+Urutan pemakaian pertama: **Pengaturan toko** (nomor WA admin & info rekening) → **Produk** (isi katalog, foto opsional) → **Batch** (buat batch berstatus Buka) → bagikan **link pemesanan** atau catat lewat **+ Pesanan Baru**.
+
+**Upgrade database:** setiap kali `supabase/schema.sql` diperbarui, jalankan ulang seluruh isinya di SQL Editor. File ini aman dijalankan berulang dan otomatis meng-upgrade data yang sudah ada.
+
+## Link pemesanan untuk pembeli
+
+Setiap batch punya link publik `/po/<slug>` (tombol *Salin link* / *Bagikan ke WA* di halaman Batch).
+
+- Pembeli tidak login dan **tidak punya akses ke tabel**. Mereka hanya bisa memanggil fungsi `get_public_batch` (lihat menu) dan `submit_public_order` (kirim pesanan). Harga, kuota, dan status batch divalidasi di server.
+- Hanya produk yang dicentang di batch yang tampil. Link berhenti menerima pesanan saat status batch bukan *Buka* atau tanggal tutup sudah lewat.
+- Pembeli dikenali dari nomor WA. Pesanan dari link berlabel **Dari link**, dan pembeli dengan lebih dari satu pesanan aktif di batch diberi tanda **Cek ganda**.
+- Bukti transfer dikirim pembeli lewat WhatsApp, tidak diunggah ke sistem.
+- Foto produk diperkecil di browser (maks. 800px, WebP) sebelum diunggah ke bucket publik `produk`. Foto lama otomatis dihapus saat diganti.
 
 ## Deploy ke Vercel
 
@@ -34,7 +46,9 @@ Aktifkan backup harian di Supabase (atau ekspor Excel tiap akhir batch).
 | `src/app/(app)/pesanan` | Dashboard batch (ringkasan, rekap singkat, daftar + filter + ekspor), detail, formulir |
 | `src/app/(app)/batch` | Batch PO + kuota per produk |
 | `src/app/(app)/rekap` | Rekap produksi, ringkasan keuangan, daftar pengambilan per hari |
-| `src/app/(app)/produk` | Katalog produk |
+| `src/app/(app)/produk` | Katalog produk + foto |
+| `src/app/(app)/pengaturan` | Nama toko, WA admin, info pembayaran |
+| `src/app/po/[slug]` | Halaman pemesanan publik untuk pembeli |
 | `src/lib/calc.ts` | Rumus total & status bayar (diuji di `calc.test.ts`) |
 
 ## Catatan desain

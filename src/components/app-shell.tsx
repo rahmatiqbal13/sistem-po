@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus } from 'lucide-react'
+import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { BATCH_STATUS } from '@/lib/types'
 import { BatchProvider, useBatch } from './batch-context'
@@ -57,7 +57,12 @@ function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto border-t border-line pt-3">
-          <div className="truncate px-2 text-sm text-muted" title={email ?? ''}>{email}</div>
+          <Link href="/pengaturan"
+            className={cx('flex min-h-11 items-center gap-3 rounded-xl px-3 font-medium',
+              isActive('/pengaturan') ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2')}>
+            <Settings size={18} aria-hidden />Pengaturan toko
+          </Link>
+          <div className="truncate px-2 pt-2 text-sm text-muted" title={email ?? ''}>{email}</div>
           <button type="button" onClick={logout} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-muted hover:bg-surface-2">
             <LogOut size={18} aria-hidden />Keluar
           </button>
