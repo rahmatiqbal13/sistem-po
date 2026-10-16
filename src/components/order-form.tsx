@@ -218,7 +218,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
           <li key={s}>
             <button type="button" onClick={() => { setStep(i); setTouched(false) }} aria-current={i === step ? 'step' : undefined}
               className={cx('min-h-[44px] w-full rounded-full px-1.5 text-sm font-bold leading-tight',
-                i === step ? 'bg-accent text-ink' : i < step ? 'bg-accent-200 text-accent-900' : 'bg-surface text-ink')}>
+                i === step ? 'bg-accent text-bg' : i < step ? 'bg-accent-200 text-accent-900' : 'bg-surface text-ink')}>
               {i + 1}. {s}
             </button>
           </li>
@@ -296,7 +296,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                           onChange={(e) => setQty(p, parseInt(e.target.value.replace(/\D/g, '') || '0', 10))}
                           className="input min-h-[44px] w-[56px] bg-bg px-1 text-center text-card font-bold" />
                         <button type="button" onClick={() => setQty(p, qty + 1)} aria-label={`Tambah ${p.nama}`}
-                          className="grid size-[44px] place-items-center rounded-full bg-accent text-ink hover:bg-accent-500">
+                          className="grid size-[44px] place-items-center rounded-full bg-accent text-bg hover:bg-accent-800">
                           <Plus size={18} {...ICON} />
                         </button>
                       </div>

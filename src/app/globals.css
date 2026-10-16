@@ -1,71 +1,76 @@
 @import "tailwindcss";
 
-/* Organic design system — token dari "Sistem PO redesign organic" (Claude Design).
-   Token didaftarkan sebagai tema Tailwind, jadi utilitas seperti bg-surface, text-accent-700,
-   bg-sage-200, rounded-card, shadow-lg dan p-4 memakai nilai design system langsung. */
+/* Design system "Sistem PO v3" (Claude Design): Archivo, kartu bergaris + bayangan "pop", tema warna pilihan toko.
+   Nilai di sini = tema bawaan (Mint · Lembut). Tema lain dipasang di <html> oleh src/lib/tema.ts dengan nama
+   variabel yang sama, jadi utilitas seperti bg-accent-200 dan text-sage-800 otomatis ikut tema.
+   `sage-*` = aksen kedua (accent-2) di design system. */
 @theme {
-  --color-bg: #f5ead8;
-  --color-surface: #ebddc5;
+  --color-bg: #f6f8f6;
+  --color-surface: #ffffff;
   --color-ink: #201e1d;
-  --color-accent: #c67139;
-  --color-sage: #7a8a5e;
-  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  --color-accent: #2c7560;
+  --color-sage: #a8532d;
+  --color-divider: #ade0cf;
 
-  --color-neutral-100: #f9f4ed;
-  --color-neutral-200: #eee7db;
-  --color-neutral-300: #dcd3c4;
-  --color-neutral-400: #c0b6a5;
-  --color-neutral-500: #a19786;
-  --color-neutral-600: #82796a;
-  --color-neutral-700: #645c50;
-  --color-neutral-800: #474238;
-  --color-neutral-900: #2e2b25;
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
 
-  --color-accent-100: #fff2eb;
-  --color-accent-200: #ffe1d0;
-  --color-accent-300: #ffc6a5;
-  --color-accent-400: #f6a06b;
-  --color-accent-500: #d67f48;
-  --color-accent-600: #b2622d;
-  --color-accent-700: #8c491a;
-  --color-accent-800: #643312;
-  --color-accent-900: #402310;
+  --color-accent-100: #eaf7f2;
+  --color-accent-200: #d3efe5;
+  --color-accent-300: #ade0cf;
+  --color-accent-400: #7fcab3;
+  --color-accent-500: #4fae93;
+  --color-accent-600: #3a9479;
+  --color-accent-700: #2c7560;
+  --color-accent-800: #20574a;
+  --color-accent-900: #163b33;
 
-  /* accent-2 (sage) di design system */
-  --color-sage-100: #f0fae1;
-  --color-sage-200: #e1eecc;
-  --color-sage-300: #ccdbb2;
-  --color-sage-400: #aebf92;
-  --color-sage-500: #8fa073;
-  --color-sage-600: #728157;
-  --color-sage-700: #56633f;
-  --color-sage-800: #3d472b;
-  --color-sage-900: #272e1b;
+  --color-sage-100: #fff3ec;
+  --color-sage-200: #ffe3d4;
+  --color-sage-300: #ffc9ae;
+  --color-sage-400: #f9a77f;
+  --color-sage-500: #ee8656;
+  --color-sage-600: #d06c3e;
+  --color-sage-700: #a8532d;
+  --color-sage-800: #7b3d21;
+  --color-sage-900: #4f2816;
 
-  --font-heading: var(--font-caprasimo), system-ui, sans-serif;
-  --font-sans: var(--font-figtree), system-ui, sans-serif;
+  --font-heading: var(--font-archivo), system-ui, sans-serif;
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
 
-  /* Skala spasi design system (density 1.10×): p-1 = 4.4px, p-2 = 8.8px, p-3 = 13.2px,
-     p-4 = 17.6px, p-6 = 26.4px, p-8 = 35.2px. Ukuran kontrol ditulis eksplisit dalam px. */
-  --spacing: 4.4px;
+  /* Skala spasi: p-1 = 4px … p-6 = 24px. Ukuran kontrol ditulis eksplisit dalam px. */
+  --spacing: 4px;
 
   --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 28px;
-  --radius-card: 32.2px; /* panel besar */
-  --radius-tile: 24px;   /* kartu daftar */
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-card: 18px; /* panel & kartu */
+  --radius-tile: 18px;
 
-  /* Skala tipografi: 13 · 14 (text-sm) · 15 · 16 (text-base) · 18 · 22 · 26 · 34/42 (h1).
-     Pakai token ini, jangan ukuran px bebas. */
-  --text-caption: 13px;  --text-caption--line-height: 1.4;   /* badge, label kecil */
-  --text-label: 15px;    --text-label--line-height: 1.45;    /* label form, teks pendukung tebal */
-  --text-card: 18px;     --text-card--line-height: 1.3;      /* judul kartu */
-  --text-section: 22px;  --text-section--line-height: 1.2;   /* judul bagian, angka di HP */
-  --text-stat: 26px;     --text-stat--line-height: 1.15;     /* angka statistik desktop */
+  /* Skala tipografi: 13 · 14 (text-sm) · 15 · 16 (text-base) · 17 · 20 · 22 · 32 (h1). */
+  --text-caption: 13px;  --text-caption--line-height: 1.4;
+  --text-label: 15px;    --text-label--line-height: 1.45;
+  --text-card: 17px;     --text-card--line-height: 1.25;
+  --text-section: 20px;  --text-section--line-height: 1.2;
+  --text-stat: 22px;     --text-stat--line-height: 1.2;
 
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+/* Garis & bayangan kartu: berubah sesuai gaya (Lembut/Tegas) */
+:root {
+  --line: #ade0cf;
+  --pop: 0 6px 18px -8px #3a947955, 0 1px 0 #d3efe5;
+  --pop-sm: 0 3px 0 #7fcab3;
 }
 
 @layer base {
@@ -83,15 +88,15 @@
     background: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: 16px;
-    line-height: 1.6;
+    font-size: 15px;
+    line-height: 1.55;
     font-variant-numeric: tabular-nums;
     -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3, h4 { margin: 0; line-height: 1.12; letter-spacing: -0.015em; text-wrap: balance; }
-  h1 { font-family: var(--font-heading); font-weight: 400; font-size: 34px; line-height: 1.15; }
-  @media (min-width: 768px) { h1 { font-size: 42px; } }
-  h2, h3, h4 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.005em; }
+  h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 800; letter-spacing: -0.02em; }
+  h1 { font-size: 28px; line-height: 1.15; letter-spacing: -0.035em; }
+  @media (min-width: 768px) { h1 { font-size: 32px; } }
   h2 { font-size: var(--text-section); }
   h3 { font-size: var(--text-card); }
   h4 { font-size: 16px; }
@@ -99,7 +104,6 @@
   a { color: var(--color-accent-700); text-underline-offset: 3px; }
   a:hover { color: var(--color-accent-800); }
   :focus { outline: none; }
-  /* accent-700: cincin fokus ≥3:1 di latar krem maupun kartu pasir */
   :focus-visible { outline: 2px solid var(--color-accent-700); outline-offset: 2px; }
   ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
   input, select, textarea { font-size: 16px; }
@@ -113,21 +117,23 @@
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     text-decoration: none; white-space: nowrap;
-    font-family: var(--font-sans); font-weight: 700; font-size: 16px; line-height: 1.2; letter-spacing: 0.01em;
-    color: var(--color-ink); background: transparent; border: 1px solid transparent;
-    padding: 8.8px 16px; border-radius: 999px; min-height: 44px;
+    font-family: var(--font-sans); font-weight: 700; font-size: 15px; line-height: 1.2; letter-spacing: 0.01em;
+    color: var(--color-ink); background: transparent; border: 2px solid transparent;
+    padding: 7px 16px; border-radius: 999px; min-height: 44px;
   }
   .btn:hover { color: var(--color-ink); }
-  /* Teks gelap di terakota: 4,6:1 (krem di terakota hanya 3:1). Hover/tekan makin terang agar kontras naik. */
-  .btn-primary, .btn-primary:hover { background: var(--color-accent); color: var(--color-ink); }
-  .btn-primary:hover { background: var(--color-accent-500); }
-  .btn-primary:active { background: var(--color-accent-400); }
-  .btn-secondary { border-color: var(--color-divider); }
-  .btn-secondary:hover { background: color-mix(in srgb, var(--color-ink) 7%, transparent); }
-  .btn-secondary:active { background: color-mix(in srgb, var(--color-ink) 14%, transparent); }
+  .btn-primary, .btn-primary:hover {
+    background: var(--color-accent-300); color: var(--color-accent-900);
+    border-color: var(--line); box-shadow: var(--pop-sm);
+  }
+  .btn-primary:not(:disabled):hover { background: var(--color-accent-400); translate: 0 -1px; }
+  .btn-primary:not(:disabled):active { translate: 0 1px; scale: 1; }
+  .btn-secondary { border-color: var(--line); background: var(--color-bg); }
+  .btn-secondary:hover { background: var(--color-accent-100); }
+  .btn-secondary:active { background: var(--color-accent-200); }
   .btn-ghost, .btn-ghost:hover { color: var(--color-accent-700); padding-inline: 12px; }
-  .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
-  .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+  .btn-ghost:hover { background: var(--color-accent-100); }
+  .btn-ghost:active { background: var(--color-accent-200); }
   .btn-icon { width: 44px; height: 44px; padding: 0; }
   /* Tinggi kontrol hanya 3: 44px (biasa), 52px (aksi utama: btn-lg, baris daftar), 56px (tombol mengambang HP) */
   .btn-lg { min-height: 52px; padding-inline: 24px; }
@@ -136,16 +142,15 @@
   .input {
     width: 100%; min-height: 44px; padding: 6px 14px; font: inherit; font-size: 16px;
     color: var(--color-ink); caret-color: var(--color-accent);
-    background-color: var(--color-surface);
-    /* neutral-600: batas kolom terlihat (3,6:1) di latar krem maupun pasir */
-    border: 1px solid var(--color-neutral-600); border-radius: 999px;
+    background-color: #fff;
+    border: 2px solid var(--line); border-radius: 12px;
   }
-  .input:hover { border-color: var(--color-neutral-800); }
-  .input:focus-visible { border-color: var(--color-accent-700); outline-offset: 0; }
-  .input[aria-invalid="true"] { border-color: var(--color-accent-700); border-width: 2px; }
+  .input:hover { border-color: var(--color-accent-400); }
+  .input:focus-visible { border-color: var(--color-accent-700); box-shadow: 3px 3px 0 var(--color-accent); outline: none; }
+  .input[aria-invalid="true"] { border-color: var(--color-accent-700); }
   .input::placeholder { color: var(--color-neutral-700); opacity: 1; }
   .input:disabled { opacity: 0.45; }
-  textarea.input { min-height: 90px; resize: vertical; border-radius: var(--radius-lg); padding: 12px 16px; }
+  textarea.input { min-height: 90px; resize: vertical; padding: 10px 14px; }
   select.input {
     appearance: none; padding-right: 36px; font-weight: 600;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23201e1d' stroke-width='2.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -154,33 +159,36 @@
 
   .tag {
     display: inline-flex; align-items: center; white-space: nowrap;
-    font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.01em; line-height: 1.4;
-    padding: 4px 10px; border-radius: 999px;
+    font-size: var(--text-caption); font-weight: 700; letter-spacing: 0.01em; line-height: 1.4;
+    padding: 2px 10px; border-radius: 999px;
   }
+
+  /* Kartu & panel: garis tipis berwarna + bayangan lembut, atau garis hitam + bayangan solid (gaya Tegas) */
+  .rounded-card, .rounded-tile, .dialog { border: 2px solid var(--line); box-shadow: var(--pop); }
 
   .dialog-backdrop {
     position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; overflow-y: auto;
-    padding: 17.6px;
+    padding: 16px;
     background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
   }
   .dialog {
-    width: min(480px, 100%); display: flex; flex-direction: column; gap: 17.6px;
-    padding: 26.4px; border-radius: var(--radius-card);
-    background: var(--color-surface); box-shadow: var(--shadow-lg);
+    width: min(480px, 100%); display: flex; flex-direction: column; gap: 16px;
+    padding: 24px; border-radius: var(--radius-card);
+    background: var(--color-surface);
   }
 
-  .table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .table th {
-    text-align: left; font-size: var(--text-caption); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
-    color: var(--color-neutral-800); padding: 13.2px; border-bottom: 1px solid var(--color-divider);
+    text-align: left; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 800;
+    color: var(--color-ink); padding: 10px 8px; border-bottom: 2px solid var(--line);
   }
-  .table td { padding: 13.2px; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 8%, transparent); }
+  .table td { padding: 10px 8px; border-bottom: 1px solid var(--color-accent-100); vertical-align: middle; }
   .table tbody tr:last-child td { border-bottom: 0; }
-  .table tbody tr:hover { background: color-mix(in srgb, var(--color-ink) 4%, transparent); }
+  .table tbody tr:hover { background: var(--color-accent-100); }
   .table tr[tabindex]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
-  /* Foto produk "dicuci" agar menyatu dengan latar hangat */
-  .washed { filter: saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94); }
+  /* Foto produk sedikit dilembutkan agar menyatu dengan tema pastel */
+  .washed { filter: saturate(0.85) contrast(0.95); }
 
   .skip {
     position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 18px; border-radius: 999px;

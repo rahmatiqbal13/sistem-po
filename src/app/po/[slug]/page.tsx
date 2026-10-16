@@ -7,12 +7,14 @@ import { createClient } from '@/lib/supabase/client'
 import type { CaraTerima } from '@/lib/types'
 import { errMsg, rupiah, tanggal } from '@/lib/format'
 import { fotoUrl } from '@/lib/foto'
+import { pasangTema } from '@/lib/tema'
+import { teksOperasional, type Operasional } from '@/lib/operasional'
 import { Alert, Button, Field, ICON, ProductPhoto, cx, useDialogFocus } from '@/components/ui'
 
 interface PublicProduct { id: string; nama: string; harga: number; foto_path: string | null; sisa: number | null }
-interface PublicBatch {
+interface PublicBatch extends Operasional {
   nama: string; terbuka: boolean; tanggal_tutup: string | null; tanggal_ambil: string | null
-  info_pembeli: string | null; nama_toko: string; wa_admin: string | null; info_pembayaran: string | null
+  info_pembeli: string | null; nama_toko: string; logo_path: string | null; sampul_path: string | null; tema: string | null; gaya: string | null; wa_admin: string | null; info_pembayaran: string | null
   produk: PublicProduct[]
 }
 interface Hasil { kode: string; nama: string; subtotal: number; items: { nama: string; qty: number; harga: number }[] }
@@ -43,6 +45,7 @@ export default function PemesananPage() {
     const { data, error } = await createClient().rpc('get_public_batch', { p_slug: slug })
     if (error) { setError(errMsg(error)); setBatch(null); return }
     setBatch(data as PublicBatch | null)
+    if (data) pasangTema((data as PublicBatch).tema, (data as PublicBatch).gaya)
   }
 
   useEffect(() => { load() }, [slug]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,16 +133,30 @@ export default function PemesananPage() {
   return (
     <>
       <Shell>
-        <header className="relative flex flex-col gap-1.5 pr-[72px]">
-          <div aria-hidden="true" className="absolute -right-10 -top-[50px] -z-10 size-[150px] rounded-full bg-accent-300 opacity-55" />
-          <div aria-hidden="true" className="absolute right-[70px] top-[60px] -z-10 size-[64px] rounded-full bg-sage-300 opacity-70" />
-          <div className="text-label font-bold text-accent-700">{batch.nama_toko}</div>
+        <header className="relative flex flex-col gap-1.5">
+          {batch.sampul_path && (
+            <img src={fotoUrl(batch.sampul_path)!} alt="" className="mb-1 h-[140px] w-full rounded-card object-cover sm:h-[180px]" />
+          )}
+          {!batch.sampul_path && <>
+            <div aria-hidden="true" className="absolute -right-10 -top-[50px] -z-10 size-[150px] rounded-full bg-accent-300 opacity-55" />
+            <div aria-hidden="true" className="absolute right-[70px] top-[60px] -z-10 size-[64px] rounded-full bg-sage-300 opacity-70" />
+          </>}
+          <div className={cx('flex items-center gap-2.5 text-label font-bold text-accent-700', batch.sampul_path && batch.logo_path && '-mt-10 ml-3 items-end')}>
+            {batch.logo_path && (
+              <img src={fotoUrl(batch.logo_path)!} alt=""
+                className={cx('shrink-0 rounded-full object-cover', batch.sampul_path ? 'size-16 border-[3px] border-bg shadow-[var(--pop-sm)]' : 'size-[40px]')} />
+            )}
+            {batch.nama_toko}
+          </div>
           <h1>{batch.nama}</h1>
           {(batch.tanggal_tutup || batch.tanggal_ambil) && (
             <div className="text-neutral-800">
               {batch.tanggal_tutup && <>Ditutup {tanggal(batch.tanggal_tutup, TGL_PANJANG)}. </>}
               {batch.tanggal_ambil && <>Siap {tanggal(batch.tanggal_ambil, TGL_PANJANG)}.</>}
             </div>
+          )}
+          {teksOperasional(batch) && (
+            <p className="mb-0 mt-2 rounded-lg bg-sage-100 px-4 py-3 text-sm text-sage-900">{teksOperasional(batch)}</p>
           )}
           {batch.info_pembeli && (
             <p className="mb-0 mt-2 whitespace-pre-line rounded-lg bg-sage-200 px-4 py-3 text-sage-900">{batch.info_pembeli}</p>
@@ -219,7 +236,7 @@ export default function PemesananPage() {
                   {(Object.keys(CARA) as CaraTerima[]).map((c) => (
                     <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
                       className={cx('min-h-[44px] rounded-full border px-1.5 text-label font-bold leading-tight',
-                        cara === c ? 'border-accent bg-accent text-ink' : 'border-divider bg-surface text-ink')}>
+                        cara === c ? 'border-accent bg-accent text-bg' : 'border-divider bg-surface text-ink')}>
                       {CARA[c]}
                     </button>
                   ))}

@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Caprasimo, Figtree } from "next/font/google";
+import { Archivo } from "next/font/google";
+import { SKRIP_TEMA, TEMA, TEMA_DEFAULT } from "@/lib/tema";
 import "./globals.css";
 
-const caprasimo = Caprasimo({ variable: "--font-caprasimo", weight: "400", subsets: ["latin"] });
-const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"] });
+const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: { default: "PO Jajanan", template: "%s · PO Jajanan" },
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f5ead8",
+  themeColor: TEMA[TEMA_DEFAULT].bg,
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -20,7 +20,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="id" className={`${caprasimo.variable} ${figtree.variable} h-full`}>
+    // Skrip tema mengubah style <html> sebelum hidrasi
+    <html lang="id" className={`${archivo.variable} h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SKRIP_TEMA }} />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

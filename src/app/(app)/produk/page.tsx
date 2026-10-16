@@ -85,7 +85,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
       {opts.map(([v, label, Icon]) => (
         <button key={v} type="button" aria-pressed={view === v} onClick={() => onChange(v)}
           className={cx('flex min-h-[44px] items-center gap-2 rounded-full px-4 text-label font-semibold',
-            view === v ? 'bg-accent text-ink' : 'text-neutral-800 hover:text-ink')}>
+            view === v ? 'bg-accent text-bg' : 'text-neutral-800 hover:text-ink')}>
           <Icon size={16} {...ICON} />{label}
         </button>
       ))}

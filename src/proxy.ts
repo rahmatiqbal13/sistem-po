@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { sisaSesi } from '@/lib/session'
 
 export async function proxy(request: NextRequest) {
   // Halaman pemesanan untuk pembeli: publik, tanpa login
@@ -22,8 +23,23 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims memverifikasi token (dan memperbaruinya bila perlu); klaimnya tepercaya
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  const user = claims?.sub ? claims : null
   const { pathname } = request.nextUrl
+
+  // Login lebih dari 24 jam: keluarkan dan minta masuk ulang
+  const sisa = sisaSesi(claims as Parameters<typeof sisaSesi>[0])
+  if (user && sisa != null && sisa <= 0) {
+    await supabase.auth.signOut({ scope: 'local' })
+    const login = new URL('/login', request.url)
+    login.searchParams.set('expired', '1')
+    const redirect = NextResponse.redirect(login)
+    // Bawa penghapusan cookie sesi dari signOut ke respons redirect
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c))
+    return redirect
+  }
 
   if (!user && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))

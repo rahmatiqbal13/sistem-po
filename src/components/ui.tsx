@@ -10,7 +10,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ')
 }
 
-/** Ikon Lucide dengan stroke tebal sesuai design system Organic */
+/** Ikon Lucide dengan stroke tebal sesuai design system */
 export const ICON = { strokeWidth: 2.75, 'aria-hidden': true } as const
 
 type Variant = 'primary' | 'secondary' | 'ghost'
@@ -233,7 +233,7 @@ export function Chip({ children, onRemove, label }: { children: ReactNode; onRem
 /** Foto produk bulat; tanpa foto tampil ikon gambar */
 export function ProductPhoto({ url, size, alt = '', washed = true }: { url: string | null; size: number; alt?: string; washed?: boolean }) {
   return (
-    <div className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-neutral-300 text-neutral-700" style={{ width: size, height: size }}>
+    <div className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-accent-200 text-accent-800" style={{ width: size, height: size }}>
       {url
         ? <img src={url} alt={alt} loading="lazy" className={cx('size-full object-cover', washed && 'washed')} />
         : <ImageIcon size={Math.round(size * 0.32)} {...ICON} />}
@@ -278,7 +278,7 @@ export function Pager({ page, pages, per, onPage, onPer, info, label = 'Halaman'
             : (
               <button key={n} type="button" onClick={() => onPage(n)} aria-current={n === page ? 'page' : undefined}
                 className={cx('h-[44px] min-w-[44px] rounded-full border px-2 text-base font-bold',
-                  n === page ? 'border-accent bg-accent text-ink' : 'border-divider text-ink hover:bg-accent-200')}>
+                  n === page ? 'border-accent bg-accent text-bg' : 'border-divider text-ink hover:bg-accent-200')}>
                 {n}
               </button>
             ))}

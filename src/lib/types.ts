@@ -1,4 +1,6 @@
 import type { RincianHpp } from './calc'
+import type { TemplatePesan } from './pesan-wa'
+import type { Operasional } from './operasional'
 
 export type BatchStatus = 'draft' | 'buka' | 'tutup' | 'selesai'
 export type OrderStatus = 'baru' | 'dikonfirmasi' | 'diproduksi' | 'siap' | 'selesai' | 'dibatalkan'
@@ -20,7 +22,13 @@ export interface Batch {
 /** Produk yang dijual di batch; kuota null = tanpa batas */
 export interface Quota { batch_id: string; product_id: string; kuota: number | null }
 
-export interface Pengaturan { nama_toko: string; wa_admin: string | null; info_pembayaran: string | null }
+export interface Pengaturan extends Operasional {
+  nama_toko: string; wa_admin: string | null; info_pembayaran: string | null; logo_path: string | null; sampul_path: string | null
+  /** Nama palet di src/lib/tema.ts & gaya kartu; null = bawaan */
+  tema: string | null; gaya: string | null
+  /** Template pesan WhatsApp buatan toko; jenis yang kosong memakai pesan otomatis */
+  template_wa: TemplatePesan | null
+}
 
 export interface Order {
   id: string; batch_id: string; customer_id: string

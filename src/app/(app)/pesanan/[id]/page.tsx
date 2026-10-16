@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ImageIcon, MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, ImageIcon, MessageCircle, Pencil, Send, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Metode, OrderItem, OrderStatus, OrderSummary, Payment } from '@/lib/types'
 import { CARA_TERIMA, METODE, ORDER_STATUS } from '@/lib/types'
@@ -11,6 +11,9 @@ import { kelebihanBayar } from '@/lib/calc'
 import { setOrderStatus, terimaTunaiSelesai } from '@/lib/data'
 import { errMsg, jam, parseRupiah, rupiah, tanggal, today } from '@/lib/format'
 import { normWa } from '@/lib/foto'
+import { fetchToko, useToko } from '@/lib/toko'
+import { LABEL_PESAN, buatPesan, pesanBawaan, pilihanPesan, type DataPesan, type JenisPesan } from '@/lib/pesan-wa'
+import { buatStrukPdf, unduh } from '@/lib/struk'
 import { useBatch } from '@/components/batch-context'
 import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, Toast, cx, inputCls, kodePesanan, useConfirm } from '@/components/ui'
 
@@ -33,6 +36,10 @@ export default function PesananDetailPage() {
   // Pembayaran yang baru dihapus: bisa diurungkan selama notifikasi tampil
   const [removed, setRemoved] = useState<Payment | null>(null)
   const pendingFile = useRef<string | null>(null)
+  const [strukBusy, setStrukBusy] = useState<'unduh' | null>(null)
+  // Dialog chat pembeli: template awal + struk PDF yang disiapkan lebih dulu (dibutuhkan menu Bagikan)
+  const [chat, setChat] = useState<JenisPesan | 'auto' | null>(null)
+  const [strukFile, setStrukFile] = useState<File | null>(null)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -109,6 +116,31 @@ export default function PesananDetailPage() {
   // Keluar dari halaman sebelum notifikasi hilang: hapus foto bukti yang tertunda
   useEffect(() => () => { flushRemovedFile() }, [])
 
+  async function siapkanStruk() {
+    if (!order) return null
+    try {
+      return await buatStrukPdf({
+        toko: await fetchToko(), kode: kodePesanan(order.id),
+        batchNama: batches.find((b) => b.id === order.batch_id)?.nama, order, items, payments,
+      })
+    } catch (e) { setError('Gagal membuat struk: ' + errMsg(e)); return null }
+  }
+
+  async function unduhStruk() {
+    setStrukBusy('unduh')
+    const file = await siapkanStruk()
+    setStrukBusy(null)
+    if (file) unduh(file)
+  }
+
+  function bukaChat(awal: JenisPesan | 'auto' = 'auto') {
+    if (!order) return
+    setError('')
+    setStrukFile(null)
+    setChat(awal)
+    if (order.status_bayar === 'lunas' && order.status !== 'dibatalkan') siapkanStruk().then(setStrukFile)
+  }
+
   // Kembali ke daftar dengan filter & halaman terakhir
   function backToList() {
     let search = ''
@@ -149,7 +181,12 @@ export default function PesananDetailPage() {
         <h1>{order.customer_nama}</h1>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-neutral-800">
           {order.customer_wa && <span>{order.customer_wa}</span>}
-          {waLink && (
+          {waLink && !batal && (
+            <button type="button" onClick={() => bukaChat()} className="inline-flex min-h-[44px] items-center gap-1.5 font-bold text-accent-700 hover:text-accent-800">
+              <MessageCircle size={16} {...ICON} />Chat pembeli
+            </button>
+          )}
+          {waLink && batal && (
             <a href={waLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 font-bold no-underline">
               <MessageCircle size={16} {...ICON} />Buka chat
             </a>
@@ -248,7 +285,24 @@ export default function PesananDetailPage() {
                 ))}
               </div>
             )}
-            {!batal && <Button variant={order.sumber === 'link' && order.status === 'baru' ? 'secondary' : 'primary'} onClick={() => setPaying(true)}>Catat pembayaran</Button>}
+            {!batal && order.status_bayar !== 'lunas' && (
+              <Button variant={order.sumber === 'link' && order.status === 'baru' ? 'secondary' : 'primary'} onClick={() => setPaying(true)}>Catat pembayaran</Button>
+            )}
+            {!batal && order.status_bayar === 'lunas' && (
+              <div className="flex flex-col gap-2 border-t border-divider pt-3">
+                <div className="text-sm text-neutral-800">Sudah lunas. Kirim struk PDF ke pembeli.</div>
+                <Button onClick={() => bukaChat(selesai ? 'selesai' : 'lunas')} disabled={!!strukBusy || !order.customer_wa}>
+                  <Send size={16} {...ICON} />Kirim struk ke WA
+                </Button>
+                {!order.customer_wa && <div className="text-sm text-neutral-800">Pembeli tidak punya nomor WA. Unduh PDF lalu kirim manual.</div>}
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" className="flex-1" onClick={unduhStruk} disabled={!!strukBusy}>
+                    <Download size={16} {...ICON} />{strukBusy === 'unduh' ? 'Membuat…' : 'Unduh PDF'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPaying(true)}>Catat pembayaran</Button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className={SIDE}>
@@ -262,7 +316,7 @@ export default function PesananDetailPage() {
                   <button key={f} type="button" onClick={() => changeStatus(f)} aria-current={i === curIdx ? 'step' : undefined}
                     className="-ml-1.5 flex min-h-[44px] items-center gap-3 rounded-full py-1.5 pl-1.5 pr-3 text-left hover:bg-accent-100">
                     <span className={cx('grid size-[30px] shrink-0 place-items-center rounded-full text-sm font-bold',
-                      i < curIdx ? 'bg-sage-700 text-bg' : i === curIdx ? 'bg-accent text-ink' : 'bg-neutral-300 text-neutral-800')}>
+                      i < curIdx ? 'bg-sage-700 text-bg' : i === curIdx ? 'bg-accent text-bg' : 'bg-neutral-300 text-neutral-800')}>
                       {i + 1}
                     </span>
                     <span className={i === curIdx ? 'font-bold' : ''}>{ORDER_STATUS[f]}</span>
@@ -281,6 +335,10 @@ export default function PesananDetailPage() {
         </div>
       </div>
 
+      {chat && order.customer_wa && (
+        <ChatModal order={order} items={items} awal={chat} struk={strukFile}
+          onClose={() => setChat(null)} onError={setError} />
+      )}
       {paying && <PaymentForm order={order} onClose={() => setPaying(false)} onSaved={() => { setPaying(false); load() }} />}
       {confirmDialog}
       {removed && (
@@ -350,7 +408,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
             {(Object.keys(METODE) as Metode[]).map((m) => (
               <button key={m} type="button" aria-pressed={metode === m} onClick={() => setMetode(m)}
                 className={cx('min-h-[44px] rounded-full border px-1 text-sm font-semibold leading-tight',
-                  metode === m ? 'border-accent bg-accent text-ink' : 'border-divider text-ink hover:bg-neutral-200')}>
+                  metode === m ? 'border-accent bg-accent text-bg' : 'border-divider text-ink hover:bg-neutral-200')}>
                 {METODE[m]}
               </button>
             ))}
@@ -376,6 +434,95 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
           {busy ? 'Menyimpan…' : okLebih && lebih > 0 ? `Tetap simpan (lebih ${rupiah(lebih)})` : 'Simpan pembayaran'}
         </Button>
       </form>
+    </Modal>
+  )
+}
+
+/** Pilih template pesan WhatsApp, edit bila perlu, lalu kirim (opsional dengan struk PDF) */
+function ChatModal({ order, items, awal, struk, onClose, onError }: {
+  order: OrderSummary; items: OrderItem[]; awal: JenisPesan | 'auto'; struk: File | null
+  onClose: () => void; onError: (msg: string) => void
+}) {
+  const toko = useToko()
+  const wa = normWa(order.customer_wa)
+  const data: DataPesan = {
+    nama: order.customer_nama, kode: kodePesanan(order.id), toko: toko.nama_toko, infoPembayaran: toko.info_pembayaran, lokasi: toko.lokasi_ambil,
+    status: order.status, caraTerima: order.cara_terima, tanggalAmbil: order.tanggal_ambil, jamAmbil: order.jam_ambil,
+    items: items.map((i) => ({ nama: i.nama_produk_snapshot, qty: i.qty, harga: Number(i.harga_snapshot) })),
+    ongkir: Number(order.ongkir), total: Number(order.total), terbayar: Number(order.terbayar), sisa: Number(order.sisa),
+  }
+  const pilihan = pilihanPesan(data)
+  const [jenis, setJenis] = useState<JenisPesan>(awal === 'auto' ? pesanBawaan(data) : awal)
+  // null = belum diedit, teks mengikuti template (dan ikut terisi saat data toko selesai dimuat)
+  const [edit, setEdit] = useState<string | null>(null)
+  const teks = edit ?? buatPesan(jenis, data, toko.template_wa)
+  const lunas = order.status_bayar === 'lunas'
+  const pakaiStruk = lunas && (jenis === 'selesai' || jenis === 'lunas')
+  const bisaShare = !!struk && typeof navigator.canShare === 'function' && navigator.canShare({ files: [struk] })
+
+  const bukaWa = () => window.open(`https://wa.me/${wa}?text=${encodeURIComponent(teks)}`, '_blank', 'noopener')
+
+  async function kirimDenganStruk() {
+    if (!struk) return
+    if (bisaShare) {
+      try {
+        await navigator.share({ files: [struk], title: struk.name, text: teks })
+        onClose()
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') { unduh(struk); bukaWa(); onError('Menu Bagikan gagal dibuka. Struk diunduh; lampirkan ke chat WhatsApp.') ; onClose() }
+      }
+      return
+    }
+    // Laptop: file tidak bisa dilampirkan otomatis, jadi unduh lalu buka chat pembeli
+    unduh(struk)
+    bukaWa()
+    onClose()
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Chat pembeli" width={520}>
+      <div className="flex items-center gap-3 rounded-lg bg-bg px-4 py-3">
+        <MessageCircle size={20} {...ICON} className="shrink-0 text-sage-700" />
+        <div className="min-w-0">
+          <div className="font-bold">{order.customer_nama}</div>
+          <div className="text-sm text-neutral-800">{order.customer_wa}</div>
+        </div>
+      </div>
+
+      <fieldset className="m-0 border-0 p-0">
+        <legend className="mb-[5px] p-0 text-label font-bold">Template pesan</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {pilihan.map((j) => (
+            <button key={j} type="button" aria-pressed={jenis === j} onClick={() => { setJenis(j); setEdit(null) }}
+              className={cx('min-h-[44px] rounded-full border px-4 text-sm font-semibold',
+                jenis === j ? 'border-accent bg-accent text-bg' : 'border-divider bg-bg text-ink hover:bg-accent-100')}>
+              {LABEL_PESAN[j]}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <Field label="Isi pesan" htmlFor="chat-teks" helper="Perubahan di sini hanya untuk pesan ini. Ubah template tetap di Pengaturan toko. *teks* tampil tebal di WhatsApp.">
+        <textarea id="chat-teks" rows={9} value={teks} onChange={(e) => setEdit(e.target.value)} className={cx(inputCls, 'text-label')} />
+      </Field>
+
+      {pakaiStruk ? (
+        <div className="flex flex-col gap-2">
+          <Button className="btn-lg" onClick={kirimDenganStruk} disabled={!struk}>
+            <Send size={16} {...ICON} />{struk ? 'Kirim pesan + struk PDF' : 'Menyiapkan struk…'}
+          </Button>
+          <p className="m-0 text-sm text-neutral-800">
+            {bisaShare
+              ? 'Menu Bagikan akan terbuka. Pilih WhatsApp, lalu pilih kontak di atas.'
+              : `Struk (${struk?.name ?? 'PDF'}) akan terunduh dan chat pembeli terbuka. Lampirkan file itu ke chat.`}
+          </p>
+          <Button variant="ghost" onClick={() => { bukaWa(); onClose() }}>Kirim teks saja</Button>
+        </div>
+      ) : (
+        <Button className="btn-lg" onClick={() => { bukaWa(); onClose() }}>
+          <Send size={16} {...ICON} />Buka WhatsApp
+        </Button>
+      )}
     </Modal>
   )
 }

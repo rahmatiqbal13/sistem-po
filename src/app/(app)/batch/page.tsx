@@ -63,7 +63,8 @@ export default function BatchPage() {
   async function advance(b: Batch) {
     const next = NEXT_STATUS[b.status]
     if (!next) return
-    await createClient().from('po_batches').update({ status: next.to }).eq('id', b.id)
+    const { error } = await createClient().from('po_batches').update({ status: next.to }).eq('id', b.id)
+    if (error) return setError(errMsg(error))
     await reload()
     if (next.to === 'tutup') {
       setBatchId(b.id)
@@ -96,12 +97,9 @@ export default function BatchPage() {
         {ids.length > 0 && <> {ids.length} pesanan Dibatalkan di batch ini ikut terhapus.</>} Tindakan ini tidak bisa dibatalkan.</>,
     })
     if (!ok) return
-    if (ids.length) {
-      const { error: e3 } = await supabase.from('orders').delete().in('id', ids)
-      if (e3) return setError(errMsg(e3))
-    }
-    const { error: e4 } = await supabase.from('po_batches').delete().eq('id', b.id)
-    if (e4) return setError(errMsg(e4))
+    // Server mengecek ulang & menghapus semuanya dalam satu transaksi
+    const { error: e3 } = await supabase.rpc('hapus_batch', { p_id: b.id })
+    if (e3) return setError(errMsg(e3))
     await reload()
     loadKuota()
   }
@@ -181,10 +179,10 @@ export default function BatchPage() {
                       <Copy size={16} {...ICON} />{copied === b.id ? 'Tersalin' : 'Salin link'}
                     </Button>
                     <Button variant="secondary" className="min-h-[44px] border-sage-500" onClick={() => shareWa(b)}>
-                      <Share2 size={16} {...ICON} />Kirim ke WA
+                      <Share2 size={16} {...ICON} />Bagikan ke WA
                     </Button>
                     <a href={`/po/${b.slug}`} target="_blank" rel="noopener" className="btn btn-ghost min-h-[44px] text-sage-800 hover:text-sage-800">
-                      <ExternalLink size={16} {...ICON} />Buka
+                      <ExternalLink size={16} {...ICON} />Buka →
                     </a>
                   </div>
                 </div>
@@ -274,10 +272,11 @@ function BatchForm({ batch, onClose, onSaved, onDelete }: {
     if (res.error) { setBusy(false); return setError(errMsg(res.error)) }
     const id = res.data.id as string
 
-    await supabase.from('batch_product_quotas').delete().eq('batch_id', id)
-    const { error } = await supabase.from('batch_product_quotas').insert(rows.map(([product_id, r]) => ({
-      batch_id: id, product_id, kuota: r.kuota.trim() === '' ? null : Math.max(0, parseInt(r.kuota, 10) || 0),
-    })))
+    // Ganti daftar produk & kuota sekaligus (atomik): tidak pernah tersisa batch tanpa produk
+    const { error } = await supabase.rpc('simpan_menu_batch', {
+      p_batch_id: id,
+      p_menu: rows.map(([product_id, r]) => ({ product_id, kuota: r.kuota.trim() === '' ? null : Math.max(0, parseInt(r.kuota, 10) || 0) })),
+    })
     setBusy(false)
     if (error) return setError(errMsg(error))
     onSaved(id)

@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
 import type { OrderItem, OrderStatus, OrderSummary } from '@/lib/types'
-import { today } from '@/lib/format'
 import { hitungLaba } from '@/lib/calc'
 
 export async function fetchBatchOrders(batchId: string): Promise<OrderSummary[]> {
@@ -22,11 +21,11 @@ export async function fetchBatchItems(batchId: string): Promise<ItemWithOrder[]>
 
 /** Total qty per produk dari pesanan aktif (Dibatalkan tidak dihitung). */
 export function rekapProduksi(items: ItemWithOrder[]) {
-  const map = new Map<string, { nama: string; qty: number }>()
+  const map = new Map<string, { id: string | null; nama: string; qty: number }>()
   for (const i of items) {
     if (i.orders.status === 'dibatalkan') continue
     const key = i.product_id ?? i.nama_produk_snapshot
-    const cur = map.get(key) ?? { nama: i.nama_produk_snapshot, qty: 0 }
+    const cur = map.get(key) ?? { id: i.product_id, nama: i.nama_produk_snapshot, qty: 0 }
     cur.qty += i.qty
     map.set(key, cur)
   }
@@ -74,13 +73,9 @@ export async function setOrderStatus(id: string, status: OrderStatus, expected?:
   return data as string
 }
 
-/** Hari H: catat sisa tagihan sebagai tunai (COD) lalu tandai Selesai. */
+/** Hari H: catat sisa tagihan sebagai tunai (COD) lalu tandai Selesai, dalam satu transaksi di server. */
 export async function terimaTunaiSelesai(o: OrderSummary) {
-  if (Number(o.sisa) > 0) {
-    const { error } = await createClient().from('payments').insert({
-      order_id: o.id, jumlah: Number(o.sisa), metode: 'tunai', tanggal_bayar: today(),
-    })
-    if (error) throw error
-  }
-  await setOrderStatus(o.id, 'selesai', o.updated_at)
+  const { data, error } = await createClient().rpc('terima_tunai_selesai', { p_id: o.id, p_expected: o.updated_at })
+  if (error) throw error
+  return data as string
 }

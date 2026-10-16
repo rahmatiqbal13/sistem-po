@@ -2,9 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { sisaSesi } from '@/lib/session'
+import { useToko } from '@/lib/toko'
+import { fotoUrl } from '@/lib/foto'
 import { BATCH_STATUS } from '@/lib/types'
 import { BatchProvider, useBatch } from './batch-context'
 import { ICON, cx } from './ui'
@@ -24,10 +27,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   )
 }
 
-function Logo({ size }: { size: 'sm' | 'md' }) {
+function Logo({ size, nama, logo }: { size: 'sm' | 'md'; nama: string; logo: string | null }) {
+  const url = fotoUrl(logo)
   return (
-    <div aria-hidden="true" className={cx('grid shrink-0 place-items-center rounded-full bg-accent font-heading text-ink',
-      size === 'md' ? 'size-[38px] text-card' : 'size-[34px] text-card')}>P</div>
+    <div aria-hidden="true" className={cx('grid shrink-0 place-items-center overflow-hidden rounded-full bg-accent font-heading font-extrabold text-card text-bg',
+      size === 'md' ? 'size-[38px]' : 'size-[34px]')}>
+      {url ? <img src={url} alt="" className="size-full object-cover" /> : nama.charAt(0).toUpperCase() || 'P'}
+    </div>
   )
 }
 
@@ -35,9 +41,34 @@ function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { email } = useBatch()
+  const toko = useToko()
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
   const onForm = pathname.startsWith('/pesanan/baru') || pathname.endsWith('/edit')
   const onDetail = /^\/pesanan\/[^/]+$/.test(pathname) && !onForm
+
+  // Tab yang dibiarkan terbuka ikut keluar tepat saat sesi 24 jam habis
+  useEffect(() => {
+    const supabase = createClient()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const keluar = async () => {
+      await supabase.auth.signOut({ scope: 'local' })
+      router.replace('/login?expired=1')
+      router.refresh()
+    }
+    const cek = async () => {
+      clearTimeout(timer)
+      const { data } = await supabase.auth.getClaims()
+      const sisa = sisaSesi(data?.claims as Parameters<typeof sisaSesi>[0])
+      if (sisa == null) return
+      if (sisa <= 0) keluar()
+      else timer = setTimeout(keluar, sisa)
+    }
+    cek()
+    // Timer bisa tertunda saat HP tidur; cek ulang saat aplikasi dibuka lagi
+    const onVisible = () => { if (document.visibilityState === 'visible') cek() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [router])
 
   async function logout() {
     await createClient().auth.signOut()
@@ -56,8 +87,8 @@ function Shell({ children }: { children: ReactNode }) {
 
       {/* Bar atas HP */}
       <div className="no-print sticky top-0 z-30 flex items-center gap-2.5 bg-bg [@media(max-height:500px)]:static px-4 pb-3 pt-[calc(13.2px+env(safe-area-inset-top))] shadow-sm md:hidden">
-        <Logo size="sm" />
-        <div className="flex-1 font-heading text-card">PO Jajanan</div>
+        <Logo size="sm" nama={toko.nama_toko} logo={toko.logo_path} />
+        <div className="min-w-0 flex-1 truncate font-heading text-card">{toko.nama_toko}</div>
         <Link href="/pengaturan" aria-label="Pengaturan toko"
           className={cx('grid size-[44px] place-items-center rounded-full',
             isActive('/pengaturan') ? 'bg-accent-200 text-accent-800' : 'text-ink hover:bg-neutral-100')}>
@@ -70,8 +101,8 @@ function Shell({ children }: { children: ReactNode }) {
         <div aria-hidden="true" className="absolute -right-[70px] bottom-[90px] -z-10 size-[200px] rounded-full bg-sage-300 opacity-60" />
         <div aria-hidden="true" className="absolute -left-[30px] bottom-[230px] -z-10 size-[90px] rounded-full bg-accent-300 opacity-50" />
         <div className="flex items-center gap-2.5 px-1.5">
-          <Logo size="md" />
-          <div className="font-heading text-section leading-tight">PO Jajanan</div>
+          <Logo size="md" nama={toko.nama_toko} logo={toko.logo_path} />
+          <div className="min-w-0 font-heading text-section leading-tight [overflow-wrap:anywhere]">{toko.nama_toko}</div>
         </div>
         <Link href="/pesanan/baru" className="btn btn-primary btn-lg mt-2">
           <Plus size={20} {...ICON} />Pesanan Baru
