@@ -41,7 +41,12 @@ export async function proxy(request: NextRequest) {
     return redirect
   }
 
-  if (!user && pathname !== '/login') {
+  // Halaman yang bisa dibuka tanpa login: masuk, lupa password, dan tujuan link dari email
+  // /reset-password memeriksa sesinya sendiri (link undangan bawaan Supabase membawa token di #hash yang tak terlihat server)
+  const publik = ['/login', '/lupa-password', '/reset-password'].includes(pathname) || pathname.startsWith('/auth/')
+  // API memeriksa login sendiri dan membalas JSON, bukan dialihkan ke halaman login
+  if (pathname.startsWith('/api/')) return response
+  if (!user && !publik) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
   if (user && (pathname === '/login' || pathname === '/')) {
