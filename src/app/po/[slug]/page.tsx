@@ -135,7 +135,7 @@ export default function PemesananPage() {
       <Shell>
         <header className="relative flex flex-col gap-1.5">
           {batch.sampul_path && (
-            <img src={fotoUrl(batch.sampul_path)!} alt="" className="mb-1 h-[140px] w-full rounded-card object-cover sm:h-[180px]" />
+            <img src={fotoUrl(batch.sampul_path)!} alt="" className="mb-1 aspect-[3/1] w-full rounded-card object-cover" />
           )}
           {!batch.sampul_path && <>
             <div aria-hidden="true" className="absolute -right-10 -top-[50px] -z-10 size-[150px] rounded-full bg-accent-300 opacity-55" />

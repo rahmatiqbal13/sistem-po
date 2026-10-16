@@ -21,7 +21,16 @@ export function useToko(): Pengaturan {
   const [toko, setToko] = useState(TOKO_DEFAULT)
   useEffect(() => {
     // Tema dari database menimpa salinan di perangkat (bisa usang jika diganti dari perangkat lain)
-    const load = () => { fetchToko().then((t) => { setToko(t); pasangTema(t.tema, t.gaya) }) }
+    const load = () => {
+      fetchToko().then((t) => {
+        setToko(t)
+        pasangTema(t.tema, t.gaya)
+        // Salinan untuk halaman login: setelah keluar, nama & logo terbaru langsung tampil
+        try {
+          localStorage.setItem('po-info-toko', JSON.stringify({ nama_toko: t.nama_toko, logo_path: t.logo_path, tema: t.tema, gaya: t.gaya }))
+        } catch {}
+      })
+    }
     load()
     window.addEventListener(TOKO_EVENT, load)
     return () => window.removeEventListener(TOKO_EVENT, load)

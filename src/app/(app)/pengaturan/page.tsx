@@ -6,12 +6,13 @@ import { ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Pengaturan, Product } from '@/lib/types'
 import { errMsg, rupiah, tanggal } from '@/lib/format'
-import { fotoUrl, kompresFoto } from '@/lib/foto'
+import { fotoUrl } from '@/lib/foto'
 import { TOKO_EVENT, fetchToko } from '@/lib/toko'
 import { NAMA_HARI, URUT_HARI, teksOperasional, type Operasional } from '@/lib/operasional'
 import { LABEL_PESAN, VARIABEL_PESAN, buatPesan, type DataPesan, type JenisPesan, type TemplatePesan } from '@/lib/pesan-wa'
 import { GAYA, GAYA_DEFAULT, TEMA, TEMA_DEFAULT, pasangTema } from '@/lib/tema'
 import { useBatch } from '@/components/batch-context'
+import { AturGambar } from '@/components/atur-gambar'
 import { Alert, Button, Field, ICON, Loading, PageHeader, ProductPhoto, cx, inputCls } from '@/components/ui'
 
 const CARD = 'flex flex-col gap-4 rounded-card bg-surface p-6'
@@ -372,17 +373,16 @@ function Tampilan({ tema, gaya, onChange }: { tema: string | null; gaya: string 
   )
 }
 
-/** Unggah gambar toko (logo/sampul) ke bucket publik, simpan path-nya, lalu hapus file lama */
-function useGambarToko(kolom: 'logo_path' | 'sampul_path', folder: string, max: number, lama: string | null,
+/** Unggah gambar toko (logo/sampul, sudah dipotong di AturGambar) ke bucket publik, simpan path-nya, lalu hapus file lama */
+function useGambarToko(kolom: 'logo_path' | 'sampul_path', folder: string, lama: string | null,
   onDone: (path: string | null) => void, onErr: (m: string) => void) {
   const [busy, setBusy] = useState(false)
-  async function ganti(file: File | null) {
+  async function ganti(blob: Blob | null) {
     setBusy(true)
     try {
       const supabase = createClient()
       let path: string | null = null
-      if (file) {
-        const blob = await kompresFoto(file, max).catch(() => { throw new Error('Gambar tidak bisa dibaca. Coba gambar lain.') })
+      if (blob) {
         path = `${folder}/${crypto.randomUUID()}.webp`
         const up = await supabase.storage.from('produk').upload(path, blob, { contentType: 'image/webp' })
         if (up.error) throw new Error('Gagal mengunggah: ' + errMsg(up.error))
@@ -406,16 +406,19 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
     createClient().from('products').select('*').eq('aktif', true).order('nama').limit(3)
       .then(({ data }) => setProduk((data ?? []) as Product[]))
   }, [])
-  const sampul = useGambarToko('sampul_path', 'sampul', 1200, toko.sampul_path, (p) => { onChange({ sampul_path: p }); setErr('') }, setErr)
-  const logo = useGambarToko('logo_path', 'logo', 400, toko.logo_path, (p) => { onChange({ logo_path: p }); setErr('') }, setErr)
+  const sampul = useGambarToko('sampul_path', 'sampul', toko.sampul_path, (p) => { onChange({ sampul_path: p }); setErr('') }, setErr)
+  const logo = useGambarToko('logo_path', 'logo', toko.logo_path, (p) => { onChange({ logo_path: p }); setErr('') }, setErr)
+  // Gambar yang sedang diatur ukuran & posisinya sebelum disimpan
+  const [atur, setAtur] = useState<{ jenis: 'logo' | 'sampul'; src: string; lokal: boolean } | null>(null)
+  const tutupAtur = () => { if (atur?.lokal) URL.revokeObjectURL(atur.src); setAtur(null) }
   const opt: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }
   const info = teksOperasional(toko)
   const sampulUrl = fotoUrl(toko.sampul_path), logoUrl = fotoUrl(toko.logo_path)
 
-  const pilihFile = (onFile: (f: File) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const pilihFile = (jenis: 'logo' | 'sampul') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''
-    if (f) onFile(f)
+    if (f) setAtur({ jenis, src: URL.createObjectURL(f), lokal: true })
   }
 
   return (
@@ -426,7 +429,7 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
       </div>
       {err && <Alert>{err}</Alert>}
       <div className="overflow-hidden rounded-[28px] border-2 border-[var(--line)] bg-bg shadow-[var(--pop)]">
-        <label className={cx('group relative block h-[120px] cursor-pointer overflow-hidden bg-accent-200 focus-within:outline-2 focus-within:outline-accent-700',
+        <label className={cx('group relative block aspect-[3/1] cursor-pointer overflow-hidden bg-accent-200 focus-within:outline-2 focus-within:outline-accent-700',
           !sampulUrl && 'border-b-2 border-dashed border-accent-400')}>
           <span className="sr-only">{sampulUrl ? 'Ganti foto sampul' : 'Pilih foto sampul'}</span>
           {sampulUrl
@@ -438,7 +441,7 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
             )}
           {sampul.busy && <span className="absolute inset-0 grid place-items-center bg-bg/70 text-sm font-bold">Mengunggah…</span>}
           <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" disabled={sampul.busy}
-            onChange={pilihFile((f) => sampul.ganti(f))} />
+            onChange={pilihFile('sampul')} />
         </label>
         <div className="flex flex-col gap-2.5 px-4 pb-4">
           <label className="relative -mt-8 grid size-16 cursor-pointer place-items-center overflow-hidden rounded-full border-[3px] border-bg bg-accent-300 text-section font-extrabold text-accent-900 shadow-[var(--pop-sm)] focus-within:outline-2 focus-within:outline-accent-700">
@@ -447,7 +450,7 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
               : <span aria-hidden="true" className="text-caption">Logo</span>}
             {logo.busy && <span className="absolute inset-0 grid place-items-center bg-bg/70 text-xs font-bold">…</span>}
             <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" disabled={logo.busy}
-              onChange={pilihFile((f) => logo.ganti(f))} />
+              onChange={pilihFile('logo')} />
           </label>
           <div>
             <div className="text-xs font-bold text-accent-700">{toko.nama_toko || 'Nama toko'}</div>
@@ -474,12 +477,27 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
           </div>
         </div>
       </div>
-      <div className="text-caption text-neutral-800">Klik sampul atau logo di pratinjau untuk mengganti gambar. Warna mengikuti tema yang dipilih.</div>
+      <div className="text-caption text-neutral-800">Klik sampul atau logo di pratinjau untuk mengganti gambar, lalu atur ukuran & posisinya. Logo juga dipakai di struk. Warna mengikuti tema yang dipilih.</div>
       {(sampulUrl || logoUrl) && (
         <div className="flex flex-wrap gap-1">
-          {sampulUrl && <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={sampul.busy} onClick={() => sampul.ganti(null)}>Hapus sampul</Button>}
-          {logoUrl && <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={logo.busy} onClick={() => logo.ganti(null)}>Hapus logo</Button>}
+          {sampulUrl && <>
+            <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={sampul.busy}
+              onClick={() => setAtur({ jenis: 'sampul', src: sampulUrl, lokal: false })}>Atur sampul</Button>
+            <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={sampul.busy} onClick={() => sampul.ganti(null)}>Hapus sampul</Button>
+          </>}
+          {logoUrl && <>
+            <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={logo.busy}
+              onClick={() => setAtur({ jenis: 'logo', src: logoUrl, lokal: false })}>Atur logo</Button>
+            <Button variant="ghost" className="min-h-[36px] px-2 text-caption" disabled={logo.busy} onClick={() => logo.ganti(null)}>Hapus logo</Button>
+          </>}
         </div>
+      )}
+      {atur && (
+        <AturGambar src={atur.src} onBatal={tutupAtur}
+          {...(atur.jenis === 'logo'
+            ? { judul: 'Atur logo', rasio: 1, bulat: true, lebarHasil: 480 }
+            : { judul: 'Atur foto sampul', rasio: 3, lebarHasil: 1500 })}
+          onSimpan={async (blob) => { await (atur.jenis === 'logo' ? logo : sampul).ganti(blob); tutupAtur() }} />
       )}
     </aside>
   )

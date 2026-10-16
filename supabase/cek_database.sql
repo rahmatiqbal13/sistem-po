@@ -33,7 +33,9 @@ with perlu(jenis, nama, file) as (values
   ('fungsi', 'terima_tunai_selesai', 'migrations/20261016_2_fungsi_atomik.sql'),
   ('fungsi', 'hapus_batch', 'migrations/20261016_2_fungsi_atomik.sql'),
   ('indeks', 'customers_norm_wa_idx', 'migrations/20261016_2_fungsi_atomik.sql'),
-  ('indeks', 'order_items_product_idx', 'migrations/20261016_2_fungsi_atomik.sql')
+  ('indeks', 'order_items_product_idx', 'migrations/20261016_2_fungsi_atomik.sql'),
+  -- migrasi 3
+  ('fungsi', 'get_info_toko', 'migrations/20261016_3_info_toko_publik.sql')
 )
 select p.jenis, p.nama,
   case when (case p.jenis
