@@ -548,3 +548,10 @@ revoke all on function get_public_batch(text) from public;
 revoke all on function submit_public_order(text, jsonb) from public;
 grant execute on function get_public_batch(text) to anon, authenticated;
 grant execute on function submit_public_order(text, jsonb) to anon, authenticated;
+
+-- ============================================================
+-- Muat ulang schema cache API agar kolom/fungsi baru langsung dikenali
+-- (mencegah error "Could not find the '...' column ... in the schema cache")
+-- ============================================================
+
+notify pgrst, 'reload schema';
