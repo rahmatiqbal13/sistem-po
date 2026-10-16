@@ -12,7 +12,7 @@ import { fotoUrl } from '@/lib/foto'
 import { useBatch } from './batch-context'
 import { Alert, Button, Field, ICON, Kicker, Loading, ProductPhoto, cx, inputCls } from './ui'
 
-interface Line { product_id: string; nama: string; harga: number; qty: number; catatan: string; snapshot: boolean }
+interface Line { product_id: string; nama: string; harga: number; hpp: number | null; qty: number; catatan: string; snapshot: boolean }
 
 const STEPS = ['Pembeli', 'Item', 'Cara terima'] as const
 const SECTION = 'flex-col gap-4 rounded-card bg-surface px-6 pb-6 pt-4'
@@ -72,7 +72,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       setUpdatedAt(order.updated_at)
       setLines(Object.fromEntries(((items ?? []) as OrderItem[]).filter((i) => i.product_id).map((i) => [i.product_id!, {
         product_id: i.product_id!, nama: i.nama_produk_snapshot, harga: Number(i.harga_snapshot),
-        qty: i.qty, catatan: i.catatan ?? '', snapshot: true,
+        hpp: i.hpp_snapshot == null ? null : Number(i.hpp_snapshot), qty: i.qty, catatan: i.catatan ?? '', snapshot: true,
       }])))
       if (order.status === 'selesai') setError('Pesanan berstatus Selesai tidak dapat diedit.')
       setReady(true)
@@ -122,7 +122,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       const prev = cur[p.id]
       const n = Math.max(0, Math.min(999, qty))
       if (n <= 0 && !prev) return cur
-      return { ...cur, [p.id]: prev ? { ...prev, qty: n } : { product_id: p.id, nama: p.nama, harga: Number(p.harga), qty: n, catatan: '', snapshot: false } }
+      return { ...cur, [p.id]: prev ? { ...prev, qty: n } : { product_id: p.id, nama: p.nama, harga: Number(p.harga), hpp: null, qty: n, catatan: '', snapshot: false } }
     })
   }
 
@@ -182,7 +182,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       status,
       items: lineList.map((l) => ({
         product_id: l.product_id, qty: l.qty, catatan: l.catatan.trim(),
-        ...(l.snapshot ? { harga_snapshot: l.harga, nama_produk_snapshot: l.nama } : {}),
+        ...(l.snapshot ? { harga_snapshot: l.harga, hpp_snapshot: l.hpp, nama_produk_snapshot: l.nama } : {}),
       })),
     }
     const { data, error } = await createClient().rpc('save_order', { payload })

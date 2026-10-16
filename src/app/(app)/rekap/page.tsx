@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { Copy, Download, Printer } from 'lucide-react'
 import type { CaraTerima, OrderSummary } from '@/lib/types'
 import { CARA_TERIMA } from '@/lib/types'
-import { fetchBatchItems, fetchBatchOrders, rekapProduksi, ringkasan, setOrderStatus, terimaTunaiSelesai, type ItemWithOrder } from '@/lib/data'
-import { exportRekap } from '@/lib/export'
+import { fetchBatchItems, fetchBatchOrders, rekapLaba, rekapProduksi, ringkasan, setOrderStatus, terimaTunaiSelesai, type ItemWithOrder } from '@/lib/data'
+import { exportLaba, exportRekap } from '@/lib/export'
 import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
@@ -39,6 +39,7 @@ export default function RekapPage() {
 
   const rekap = useMemo(() => rekapProduksi(items), [items])
   const sum = useMemo(() => ringkasan(orders ?? []), [orders])
+  const laba = useMemo(() => rekapLaba(items), [items])
   const totalQty = rekap.reduce((s, r) => s + r.qty, 0)
 
   const itemsByOrder = useMemo(() => {
@@ -134,6 +135,7 @@ export default function RekapPage() {
                 <div className="flex items-baseline justify-between gap-2"><dt>Total pesanan ({sum.jumlah})</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.total)}</dd></div>
                 <div className="flex items-baseline justify-between gap-2"><dt>Total terbayar</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.terbayar)}</dd></div>
                 <div className="flex items-baseline justify-between gap-2"><dt>Belum terbayar</dt><dd className="m-0 text-[22px] font-bold text-accent-300">{rupiah(sum.sisa)}</dd></div>
+                <div className="flex items-baseline justify-between gap-2 border-t border-sage-600 pt-2"><dt>Laba kotor{laba.total.tanpaHpp > 0 && '*'}</dt><dd className="m-0 text-[22px] font-bold">{rupiah(laba.total.laba)}</dd></div>
               </dl>
               <div className="mt-auto grid grid-cols-3 gap-2">
                 {([['Lunas', sum.lunas], ['DP', sum.dp], ['Belum bayar', sum.belum]] as const).map(([l, n]) => (
@@ -146,6 +148,10 @@ export default function RekapPage() {
               {sum.dibatalkan > 0 && <div className="text-sm">{sum.dibatalkan} pesanan dibatalkan (tidak dihitung).</div>}
             </section>
           </div>
+
+          {laba.produk.length > 0 && (
+            <LabaSection laba={laba} onExport={(f) => exportLaba(laba, `laba-${batch.nama}`, f)} />
+          )}
 
           {/* Daftar pengambilan/pengantaran */}
           <section className="flex flex-col gap-4">
@@ -212,5 +218,80 @@ export default function RekapPage() {
       )}
       {confirmDialog}
     </div>
+  )
+}
+
+function LabaSection({ laba, onExport }: { laba: ReturnType<typeof rekapLaba>; onExport: (f: 'xlsx' | 'csv') => void }) {
+  const t = laba.total
+  const terbaik = laba.produk.filter((p) => p.qty > p.tanpaHpp)
+  const marginTertinggi = [...terbaik].sort((a, b) => b.margin - a.margin)[0]
+  const rugi = terbaik.filter((p) => p.laba < 0)
+  const tanpaHpp = laba.produk.filter((p) => p.tanpaHpp > 0)
+
+  return (
+    <section className="flex flex-col gap-4 rounded-card bg-surface p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[25px]">Laba kotor</h2>
+        <span className="text-sm text-neutral-800">
+          <b className="text-[22px] text-ink">{rupiah(t.laba)}</b> · margin {t.margin}%
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2">
+        {([['Pendapatan produk', t.pendapatan], ['Total HPP', t.hpp], ['Laba kotor', t.laba]] as const).map(([l, n]) => (
+          <div key={l} className="rounded-lg bg-bg p-3">
+            <div className="text-sm text-neutral-800">{l}</div>
+            <div className={cx('text-[20px] font-bold', n < 0 && 'text-accent-800')}>{rupiah(n)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="-mx-6 overflow-x-auto px-6">
+        <table className="w-full min-w-[520px] border-collapse text-left tabular-nums">
+          <thead>
+            <tr className="text-sm text-neutral-800">
+              <th className="py-2 pr-3 font-semibold">Produk</th>
+              <th className="py-2 pr-3 text-right font-semibold">Qty</th>
+              <th className="py-2 pr-3 text-right font-semibold">Pendapatan</th>
+              <th className="py-2 pr-3 text-right font-semibold">HPP</th>
+              <th className="py-2 pr-3 text-right font-semibold">Laba</th>
+              <th className="py-2 text-right font-semibold">Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {laba.produk.map((p) => {
+              const kosong = p.tanpaHpp === p.qty
+              return (
+                <tr key={p.nama} className="border-t border-divider">
+                  <td className="py-2 pr-3 font-semibold">{p.nama}</td>
+                  <td className="py-2 pr-3 text-right">{p.qty}</td>
+                  <td className="py-2 pr-3 text-right">{rupiah(p.pendapatan + p.pendapatanTanpaHpp)}</td>
+                  <td className="py-2 pr-3 text-right">{kosong ? '—' : rupiah(p.hpp)}{p.tanpaHpp > 0 && !kosong && '*'}</td>
+                  <td className={cx('py-2 pr-3 text-right font-bold', p.laba < 0 && 'text-accent-800')}>{kosong ? '—' : rupiah(p.laba)}</td>
+                  <td className="py-2 text-right">{kosong ? '—' : `${p.margin}%`}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
+        {marginTertinggi && <li>Margin tertinggi: <b>{marginTertinggi.nama}</b> ({marginTertinggi.margin}%).</li>}
+        {rugi.length > 0 && <li className="font-bold text-accent-800">Dijual di bawah modal: {rugi.map((p) => p.nama).join(', ')}. Pertimbangkan menaikkan harga.</li>}
+        {tanpaHpp.length > 0 && (
+          <li className="text-neutral-800">
+            * {t.tanpaHpp} pcs ({rupiah(t.pendapatanTanpaHpp)}) belum punya HPP dan tidak dihitung dalam laba: {tanpaHpp.map((p) => p.nama).join(', ')}.{' '}
+            <Link href="/produk" className="font-bold text-ink">Isi HPP di Produk</Link>
+          </li>
+        )}
+        <li className="text-neutral-800">Laba kotor = pendapatan produk − HPP. Belum termasuk ongkir dan biaya tetap (sewa, gaji, listrik). Pesanan Dibatalkan tidak dihitung.</li>
+      </ul>
+
+      <div className="no-print flex flex-wrap gap-2">
+        <Button variant="secondary" className="min-h-[44px]" onClick={() => onExport('xlsx')}><Download size={16} {...ICON} />Excel</Button>
+        <Button variant="ghost" className="min-h-[44px]" onClick={() => onExport('csv')}>CSV</Button>
+      </div>
+    </section>
   )
 }

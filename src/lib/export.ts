@@ -1,6 +1,6 @@
 import type { OrderSummary } from '@/lib/types'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
-import type { ItemWithOrder } from '@/lib/data'
+import type { ItemWithOrder, rekapLaba } from '@/lib/data'
 
 type Row = Record<string, string | number>
 
@@ -54,4 +54,18 @@ export function exportRekap(rekap: { nama: string; qty: number }[], filename: st
   const rows: Row[] = rekap.map((r) => ({ 'Produk': r.nama, 'Total qty': r.qty }))
   rows.push({ 'Produk': 'TOTAL', 'Total qty': rekap.reduce((s, r) => s + r.qty, 0) })
   return download(rows, filename, format, 'Rekap produksi')
+}
+
+export function exportLaba(laba: ReturnType<typeof rekapLaba>, filename: string, format: 'xlsx' | 'csv') {
+  const row = (nama: string, r: ReturnType<typeof rekapLaba>['total'], qty: number): Row => ({
+    'Produk': nama,
+    'Qty': qty,
+    'Pendapatan': r.pendapatan + r.pendapatanTanpaHpp,
+    'HPP': r.tanpaHpp ? `${r.hpp} (${r.tanpaHpp} pcs tanpa HPP)` : r.hpp,
+    'Laba kotor': r.laba,
+    'Margin (%)': r.margin,
+  })
+  const rows = laba.produk.map((p) => row(p.nama, p, p.qty))
+  rows.push(row('TOTAL', laba.total, laba.produk.reduce((s, p) => s + p.qty, 0)))
+  return download(rows, filename, format, 'Laba')
 }

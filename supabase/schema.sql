@@ -126,6 +126,34 @@ alter table orders drop constraint if exists orders_sumber_check;
 alter table orders add constraint orders_sumber_check check (sumber in ('admin', 'link'));
 
 -- ============================================================
+-- Upgrade v3: HPP (harga pokok per pcs) & laba
+-- hpp null = belum diisi. hpp_snapshot di item pesanan dibekukan seperti harga_snapshot,
+-- jadi laba pesanan lama tidak berubah saat HPP produk diubah.
+-- ============================================================
+
+alter table products add column if not exists hpp bigint check (hpp >= 0);
+-- Rincian biaya untuk menghitung HPP: { hasil: <pcs>, biaya: [{ nama, jumlah }] }
+alter table products add column if not exists hpp_rincian jsonb;
+alter table order_items add column if not exists hpp_snapshot bigint check (hpp_snapshot >= 0);
+
+-- Item yang dibuat sebelum HPP produknya diisi ikut memakai HPP pertama yang diisi.
+-- Setelah terisi, perubahan HPP berikutnya tidak menyentuh item lama.
+create or replace function isi_hpp_item_lama()
+returns trigger language plpgsql as $$
+begin
+  if new.hpp is not null then
+    update order_items set hpp_snapshot = new.hpp
+    where product_id = new.id and hpp_snapshot is null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists products_isi_hpp on products;
+create trigger products_isi_hpp after insert or update of hpp on products
+for each row execute function isi_hpp_item_lama();
+
+-- ============================================================
 -- View ringkasan pesanan: total & status bayar dihitung, tidak disimpan
 -- ============================================================
 
@@ -226,13 +254,14 @@ begin
     if not found then
       raise exception 'Produk tidak ditemukan' using errcode = 'P0002';
     end if;
-    insert into order_items (order_id, product_id, nama_produk_snapshot, harga_snapshot, qty, catatan)
+    insert into order_items (order_id, product_id, nama_produk_snapshot, harga_snapshot, hpp_snapshot, qty, catatan)
     values (
       v_id,
       v_product.id,
       coalesce(v_item->>'nama_produk_snapshot', v_product.nama),
-      -- harga lama dipertahankan saat edit (snapshot), produk baru memakai harga katalog saat ini
+      -- harga & HPP lama dipertahankan saat edit (snapshot), produk baru memakai nilai katalog saat ini
       coalesce((v_item->>'harga_snapshot')::bigint, v_product.harga),
+      coalesce((v_item->>'hpp_snapshot')::bigint, v_product.hpp),
       (v_item->>'qty')::int,
       nullif(v_item->>'catatan', '')
     );
@@ -477,7 +506,7 @@ begin
       raise exception 'Jumlah per produk harus 1–50.';
     end if;
 
-    select p.id, p.nama, p.harga, q.kuota into v_p
+    select p.id, p.nama, p.harga, p.hpp, q.kuota into v_p
     from batch_product_quotas q join products p on p.id = q.product_id and p.aktif
     where q.batch_id = b.id and q.product_id = nullif(v_item->>'product_id', '')::uuid;
     if not found then
@@ -493,8 +522,8 @@ begin
       end if;
     end if;
 
-    insert into order_items (order_id, product_id, nama_produk_snapshot, harga_snapshot, qty, catatan)
-    values (v_order, v_p.id, v_p.nama, v_p.harga, v_qty,
+    insert into order_items (order_id, product_id, nama_produk_snapshot, harga_snapshot, hpp_snapshot, qty, catatan)
+    values (v_order, v_p.id, v_p.nama, v_p.harga, v_p.hpp, v_qty,
             left(nullif(trim(coalesce(v_item->>'catatan', '')), ''), 100));
 
     v_subtotal := v_subtotal + v_p.harga * v_qty;

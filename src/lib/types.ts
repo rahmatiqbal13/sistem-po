@@ -1,3 +1,5 @@
+import type { RincianHpp } from './calc'
+
 export type BatchStatus = 'draft' | 'buka' | 'tutup' | 'selesai'
 export type OrderStatus = 'baru' | 'dikonfirmasi' | 'diproduksi' | 'siap' | 'selesai' | 'dibatalkan'
 export type CaraTerima = 'pickup' | 'antar' | 'kurir'
@@ -5,7 +7,11 @@ export type StatusBayar = 'belum' | 'dp' | 'lunas'
 export type Metode = 'transfer' | 'ewallet' | 'tunai'
 
 export interface Customer { id: string; nama: string; no_wa: string | null; catatan: string | null }
-export interface Product { id: string; nama: string; harga: number; aktif: boolean; foto_path: string | null }
+export interface Product {
+  id: string; nama: string; harga: number; aktif: boolean; foto_path: string | null
+  /** Harga pokok per pcs; null = belum diisi */
+  hpp: number | null; hpp_rincian: RincianHpp | null
+}
 export interface Batch {
   id: string; nama: string; status: BatchStatus
   tanggal_buka: string | null; tanggal_tutup: string | null; tanggal_ambil: string | null
@@ -34,7 +40,7 @@ export interface OrderSummary extends Order {
 
 export interface OrderItem {
   id: string; order_id: string; product_id: string | null
-  nama_produk_snapshot: string; harga_snapshot: number; qty: number; catatan: string | null
+  nama_produk_snapshot: string; harga_snapshot: number; hpp_snapshot: number | null; qty: number; catatan: string | null
 }
 
 export interface Payment {

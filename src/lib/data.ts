@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import type { OrderItem, OrderStatus, OrderSummary } from '@/lib/types'
 import { today } from '@/lib/format'
+import { hitungLaba } from '@/lib/calc'
 
 export async function fetchBatchOrders(batchId: string): Promise<OrderSummary[]> {
   const { data, error } = await createClient()
@@ -30,6 +31,25 @@ export function rekapProduksi(items: ItemWithOrder[]) {
     map.set(key, cur)
   }
   return [...map.values()].sort((a, b) => b.qty - a.qty)
+}
+
+/** Pendapatan, HPP, dan laba kotor per produk + total, dari pesanan aktif (Dibatalkan tidak dihitung). */
+export function rekapLaba(items: ItemWithOrder[]) {
+  const aktif = items.filter((i) => i.orders.status !== 'dibatalkan')
+  const groups = new Map<string, ItemWithOrder[]>()
+  for (const i of aktif) {
+    const key = i.product_id ?? i.nama_produk_snapshot
+    groups.set(key, [...(groups.get(key) ?? []), i])
+  }
+  const toLaba = (list: ItemWithOrder[]) => hitungLaba(list.map((i) => ({
+    harga: Number(i.harga_snapshot), hpp: i.hpp_snapshot == null ? null : Number(i.hpp_snapshot), qty: i.qty,
+  })))
+  const produk = [...groups.values()].map((list) => ({
+    nama: list[0].nama_produk_snapshot,
+    qty: list.reduce((s, i) => s + i.qty, 0),
+    ...toLaba(list),
+  })).sort((a, b) => b.laba - a.laba)
+  return { produk, total: toLaba(aktif) }
 }
 
 export function ringkasan(orders: OrderSummary[]) {
