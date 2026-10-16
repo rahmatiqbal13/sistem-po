@@ -2,6 +2,13 @@ export function rupiah(n: number | null | undefined): string {
   return 'Rp' + Math.round(n ?? 0).toLocaleString('id-ID')
 }
 
+/** Versi ringkas untuk ruang sempit: Rp1,25 jt · Rp950.000 */
+export function rupiahSingkat(n: number | null | undefined): string {
+  const v = Math.round(n ?? 0)
+  if (Math.abs(v) < 1_000_000) return rupiah(v)
+  return 'Rp' + (v / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' jt'
+}
+
 export function tanggal(d: string | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
   if (!d) return '—'
   const date = d.length === 10 ? new Date(d + 'T00:00:00') : new Date(d)

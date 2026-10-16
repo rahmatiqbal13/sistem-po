@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 function Logo({ size }: { size: 'sm' | 'md' }) {
   return (
     <div aria-hidden="true" className={cx('grid shrink-0 place-items-center rounded-full bg-accent font-heading text-ink',
-      size === 'md' ? 'size-[38px] text-lg' : 'size-[34px] text-[17px]')}>P</div>
+      size === 'md' ? 'size-[38px] text-card' : 'size-[34px] text-card')}>P</div>
   )
 }
 
@@ -46,7 +46,7 @@ function Shell({ children }: { children: ReactNode }) {
   }
 
   const sideItem = (active: boolean) => cx(
-    'flex min-h-[46px] items-center gap-3 rounded-full px-4 text-[15px] font-semibold no-underline transition-colors',
+    'flex min-h-[44px] items-center gap-3 rounded-full px-4 text-label font-semibold no-underline transition-colors',
     active ? 'bg-accent-200 text-accent-800 hover:text-accent-800' : 'text-ink hover:bg-neutral-100 hover:text-ink',
   )
 
@@ -57,7 +57,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Bar atas HP */}
       <div className="no-print sticky top-0 z-30 flex items-center gap-2.5 bg-bg [@media(max-height:500px)]:static px-4 pb-3 pt-[calc(13.2px+env(safe-area-inset-top))] shadow-sm md:hidden">
         <Logo size="sm" />
-        <div className="flex-1 font-heading text-[19px]">PO Jajanan</div>
+        <div className="flex-1 font-heading text-card">PO Jajanan</div>
         <Link href="/pengaturan" aria-label="Pengaturan toko"
           className={cx('grid size-[44px] place-items-center rounded-full',
             isActive('/pengaturan') ? 'bg-accent-200 text-accent-800' : 'text-ink hover:bg-neutral-100')}>
@@ -71,9 +71,9 @@ function Shell({ children }: { children: ReactNode }) {
         <div aria-hidden="true" className="absolute -left-[30px] bottom-[230px] -z-10 size-[90px] rounded-full bg-accent-300 opacity-50" />
         <div className="flex items-center gap-2.5 px-1.5">
           <Logo size="md" />
-          <div className="font-heading text-[21px] leading-tight">PO Jajanan</div>
+          <div className="font-heading text-section leading-tight">PO Jajanan</div>
         </div>
-        <Link href="/pesanan/baru" className="btn btn-primary mt-2 min-h-[48px]">
+        <Link href="/pesanan/baru" className="btn btn-primary btn-lg mt-2">
           <Plus size={20} {...ICON} />Pesanan Baru
         </Link>
         <nav aria-label="Menu utama" className="flex flex-col gap-1">
@@ -89,7 +89,7 @@ function Shell({ children }: { children: ReactNode }) {
         </Link>
         <div className="flex flex-col gap-1 rounded-lg bg-neutral-100 px-4 py-3">
           <div className="truncate text-sm text-neutral-800" title={email ?? ''}>{email}</div>
-          <button type="button" onClick={logout} className="btn btn-ghost min-h-[44px] justify-start px-0 text-[15px]">
+          <button type="button" onClick={logout} className="btn btn-ghost min-h-[44px] justify-start px-0 text-label">
             <LogOut size={16} {...ICON} />Keluar
           </button>
         </div>
@@ -97,7 +97,7 @@ function Shell({ children }: { children: ReactNode }) {
 
       <main id="konten" tabIndex={-1}
         className={cx('min-w-0 flex-1 px-4 pt-4 md:px-6 md:pb-16 md:pt-8', onForm ? 'pb-6' : 'pb-44')}>
-        <div className="flex max-w-[1120px] flex-col gap-6">{children}</div>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">{children}</div>
       </main>
 
       {/* Navigasi bawah HP + tombol utama */}

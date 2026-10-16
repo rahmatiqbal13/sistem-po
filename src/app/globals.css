@@ -52,7 +52,16 @@
   --radius-sm: 8px;
   --radius-md: 16px;
   --radius-lg: 28px;
-  --radius-card: 32.2px;
+  --radius-card: 32.2px; /* panel besar */
+  --radius-tile: 24px;   /* kartu daftar */
+
+  /* Skala tipografi: 13 · 14 (text-sm) · 15 · 16 (text-base) · 18 · 22 · 26 · 34/42 (h1).
+     Pakai token ini, jangan ukuran px bebas. */
+  --text-caption: 13px;  --text-caption--line-height: 1.4;   /* badge, label kecil */
+  --text-label: 15px;    --text-label--line-height: 1.45;    /* label form, teks pendukung tebal */
+  --text-card: 18px;     --text-card--line-height: 1.3;      /* judul kartu */
+  --text-section: 22px;  --text-section--line-height: 1.2;   /* judul bagian, angka di HP */
+  --text-stat: 26px;     --text-stat--line-height: 1.15;     /* angka statistik desktop */
 
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
@@ -83,9 +92,9 @@
   h1 { font-family: var(--font-heading); font-weight: 400; font-size: 34px; line-height: 1.15; }
   @media (min-width: 768px) { h1 { font-size: 42px; } }
   h2, h3, h4 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.005em; }
-  h2 { font-size: 26px; }
-  h3 { font-size: 25px; }
-  h4 { font-size: 20px; }
+  h2 { font-size: var(--text-section); }
+  h3 { font-size: var(--text-card); }
+  h4 { font-size: 16px; }
   p, dd, td { text-wrap: pretty; }
   a { color: var(--color-accent-700); text-underline-offset: 3px; }
   a:hover { color: var(--color-accent-800); }
@@ -120,10 +129,12 @@
   .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
   .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
   .btn-icon { width: 44px; height: 44px; padding: 0; }
+  /* Tinggi kontrol hanya 3: 44px (biasa), 52px (aksi utama: btn-lg, baris daftar), 56px (tombol mengambang HP) */
+  .btn-lg { min-height: 52px; padding-inline: 24px; }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .input {
-    width: 100%; min-height: 46px; padding: 6px 14px; font: inherit; font-size: 16px;
+    width: 100%; min-height: 44px; padding: 6px 14px; font: inherit; font-size: 16px;
     color: var(--color-ink); caret-color: var(--color-accent);
     background-color: var(--color-surface);
     /* neutral-600: batas kolom terlihat (3,6:1) di latar krem maupun pasir */
@@ -143,8 +154,8 @@
 
   .tag {
     display: inline-flex; align-items: center; white-space: nowrap;
-    font-size: 14px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4;
-    padding: 3px 10px; border-radius: 999px;
+    font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.01em; line-height: 1.4;
+    padding: 4px 10px; border-radius: 999px;
   }
 
   .dialog-backdrop {
@@ -160,7 +171,7 @@
 
   .table { width: 100%; border-collapse: collapse; font-size: 15px; }
   .table th {
-    text-align: left; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+    text-align: left; font-size: var(--text-caption); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
     color: var(--color-neutral-800); padding: 13.2px; border-bottom: 1px solid var(--color-divider);
   }
   .table td { padding: 13.2px; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 8%, transparent); }

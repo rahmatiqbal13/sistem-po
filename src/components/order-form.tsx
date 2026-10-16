@@ -15,7 +15,7 @@ import { Alert, Button, Field, ICON, Kicker, Loading, ProductPhoto, cx, inputCls
 interface Line { product_id: string; nama: string; harga: number; hpp: number | null; qty: number; catatan: string; snapshot: boolean }
 
 const STEPS = ['Pembeli', 'Item', 'Cara terima'] as const
-const SECTION = 'flex-col gap-4 rounded-card bg-surface px-6 pb-6 pt-4'
+const SECTION = 'flex-col gap-4 rounded-card bg-surface p-6'
 
 export function OrderForm({ orderId }: { orderId?: string }) {
   const router = useRouter()
@@ -233,8 +233,8 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       )}
       {error && <Alert>{error}</Alert>}
       {confirmOver && overQuota.length > 0 && (
-        <div role="alertdialog" aria-labelledby="ov-t" className="flex flex-col gap-2 rounded-card bg-accent-200 px-6 py-4 text-accent-900">
-          <div id="ov-t" className="text-lg font-bold">Kuota terlampaui</div>
+        <div role="alertdialog" aria-labelledby="ov-t" className="flex flex-col gap-2 rounded-card bg-accent-200 p-6 text-accent-900">
+          <div id="ov-t" className="text-card font-bold">Kuota terlampaui</div>
           {overQuota.map((o) => <div key={o.nama}>{o.nama}: pesan {o.qty}, sisa kuota {o.sisa}</div>)}
           <div className="mt-1 flex flex-wrap gap-2">
             <Button onClick={() => save(true)} className="px-5">Tetap simpan</Button>
@@ -247,7 +247,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
       <div className="grid items-start gap-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr]">
         {/* 1. Pembeli */}
         <section aria-labelledby="h-pembeli" className={cx(SECTION, showStep(0), 'xl:col-start-1 xl:row-start-1')}>
-          <h2 id="h-pembeli" className="text-xl">1. Pembeli</h2>
+          <h2 id="h-pembeli" className="text-section">1. Pembeli</h2>
           <CustomerPicker value={customer} onChange={(c) => { setCustomer(c); setError('') }} error={shown.customer} />
           <Field label="Batch PO" htmlFor="nb-batch"
             error={batch && batch.status !== 'buka' ? `Batch “${batch.nama}” sedang tidak berstatus Buka.` : shown.batch}>
@@ -261,10 +261,10 @@ export function OrderForm({ orderId }: { orderId?: string }) {
         {/* 2. Item */}
         <section aria-labelledby="h-item" className={cx(SECTION, 'min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1', showStep(1))}>
           <div className="flex items-baseline justify-between gap-2">
-            <h2 id="h-item" tabIndex={-1} className="text-xl">2. Item</h2>
+            <h2 id="h-item" tabIndex={-1} className="text-section">2. Item</h2>
             {totalQty > 0 && <span className="text-sm text-neutral-800">{totalQty} item dipilih</span>}
           </div>
-          {shown.items && <div role="alert" className="text-[15px] font-bold text-accent-800">{shown.items}</div>}
+          {shown.items && <div role="alert" className="text-label font-bold text-accent-800">{shown.items}</div>}
           {visibleProducts.length === 0 ? (
             <div className="text-neutral-800">Belum ada produk aktif. Tambahkan di menu Produk.</div>
           ) : (
@@ -279,7 +279,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                 return (
                   <div key={p.id} className="flex flex-col gap-2 border-b border-divider py-3 last:border-0">
                     <div className="flex flex-wrap items-center gap-3">
-                      <ProductPhoto url={fotoUrl(p.foto_path)} size={52} />
+                      <ProductPhoto url={fotoUrl(p.foto_path)} size={64} />
                       <div className="min-w-[140px] flex-1">
                         <div className="font-bold leading-snug">{p.nama}{!p.aktif && ' (nonaktif)'}</div>
                         <div className="text-sm text-neutral-800">
@@ -294,7 +294,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                         </button>
                         <input inputMode="numeric" value={qty || ''} placeholder="0" aria-label={`Jumlah ${p.nama}`}
                           onChange={(e) => setQty(p, parseInt(e.target.value.replace(/\D/g, '') || '0', 10))}
-                          className="input min-h-[44px] w-[56px] bg-bg px-1 text-center text-[17px] font-bold" />
+                          className="input min-h-[44px] w-[56px] bg-bg px-1 text-center text-card font-bold" />
                         <button type="button" onClick={() => setQty(p, qty + 1)} aria-label={`Tambah ${p.nama}`}
                           className="grid size-[44px] place-items-center rounded-full bg-accent text-ink hover:bg-accent-500">
                           <Plus size={18} {...ICON} />
@@ -304,7 +304,7 @@ export function OrderForm({ orderId }: { orderId?: string }) {
                     {qty > 0 && (
                       <input value={line?.catatan ?? ''} maxLength={100} placeholder="Catatan item, mis. tanpa sambal" aria-label={`Catatan untuk ${p.nama}`}
                         onChange={(e) => setLines((cur) => ({ ...cur, [p.id]: { ...cur[p.id], catatan: e.target.value } }))}
-                        className="input min-h-[44px] bg-bg text-[15px]" />
+                        className="input min-h-[44px] bg-bg text-label" />
                     )}
                     {over && <div className="text-sm font-bold text-accent-800">Melebihi sisa kuota ({Math.max(sisa, 0)}).</div>}
                   </div>
@@ -316,11 +316,11 @@ export function OrderForm({ orderId }: { orderId?: string }) {
 
         {/* 3. Cara terima */}
         <section aria-labelledby="h-cara" className={cx(SECTION, showStep(2), 'xl:col-start-1 xl:row-start-2')}>
-          <h2 id="h-cara" className="text-xl">3. Cara terima</h2>
+          <h2 id="h-cara" className="text-section">3. Cara terima</h2>
           <div role="radiogroup" aria-labelledby="h-cara" className="grid grid-cols-3 gap-1.5">
             {(Object.keys(CARA_TERIMA) as CaraTerima[]).map((c) => (
               <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
-                className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
+                className={cx('min-h-[44px] rounded-full border px-1.5 text-label font-bold leading-tight',
                   cara === c ? 'border-accent bg-accent-200 text-accent-900' : 'border-divider bg-bg text-ink')}>
                 {CARA_TERIMA[c]}
               </button>
@@ -364,10 +364,10 @@ export function OrderForm({ orderId }: { orderId?: string }) {
           <div className="text-sm text-neutral-800">
             {totalQty} item · subtotal {rupiah(sub)}{nOngkir > 0 ? ` + ongkir ${rupiah(nOngkir)}` : ''}
           </div>
-          <div className="text-2xl font-bold leading-tight">{rupiah(total)}</div>
+          <div className="text-stat font-bold leading-tight">{rupiah(total)}</div>
         </div>
-        {step < 2 && <Button className="min-h-[50px] px-6 md:hidden" onClick={next}>Lanjut</Button>}
-        <Button className={cx('min-h-[50px] px-[22px]', step < 2 && 'hidden md:inline-flex')} onClick={() => save()} disabled={busy || isSelesai}>
+        {step < 2 && <Button className="btn-lg md:hidden" onClick={next}>Lanjut</Button>}
+        <Button className={cx('btn-lg', step < 2 && 'hidden md:inline-flex')} onClick={() => save()} disabled={busy || isSelesai}>
           {busy ? 'Menyimpan…' : <><Check size={18} {...ICON} />Simpan pesanan</>}
         </Button>
       </div>
@@ -416,7 +416,7 @@ function CustomerPicker({ value, onChange, error }: { value: Customer | null; on
   if (value) {
     return (
       <div className="flex items-center gap-3 rounded-full bg-accent-100 p-2 outline-2 -outline-offset-2 outline-accent">
-        <div aria-hidden="true" className="grid size-[46px] shrink-0 place-items-center rounded-full bg-accent-300 font-bold text-accent-900">{inisial(value.nama)}</div>
+        <div aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-full bg-accent-300 font-bold text-accent-900">{inisial(value.nama)}</div>
         <div className="min-w-0 flex-1">
           <div className="font-bold">{value.nama}</div>
           <div className="whitespace-nowrap text-sm text-neutral-800">{value.no_wa || 'Tanpa nomor WA'}</div>

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, Share2 } from 'lucide-react'
+import { Copy, ExternalLink, Share2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Batch, BatchStatus, Product, Quota } from '@/lib/types'
 import { BATCH_STATUS } from '@/lib/types'
 import { errMsg, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
-import { Alert, Button, Empty, Field, ICON, Loading, Modal, PageHeader, cx, inputCls } from '@/components/ui'
+import { Alert, Button, CARD, CARD_GRID, Empty, Field, ICON, Loading, Modal, PageHeader, cx, inputCls, useConfirm } from '@/components/ui'
 
 const NEXT_STATUS: Partial<Record<BatchStatus, { to: BatchStatus; label: string }>> = {
   draft: { to: 'buka', label: 'Buka batch' },
@@ -34,6 +34,8 @@ export default function BatchPage() {
   const [copied, setCopied] = useState<string | null>(null)
   const [copyFail, setCopyFail] = useState<string | null>(null)
   const [kuota, setKuota] = useState<Record<string, KuotaRow[]>>({})
+  const [error, setError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
 
   // Pemakaian kuota per batch (pesanan Dibatalkan tidak dihitung)
   const loadKuota = useCallback(async () => {
@@ -69,6 +71,41 @@ export default function BatchPage() {
     }
   }
 
+  // Hapus batch yang tidak jadi. Ditolak bila ada pesanan aktif atau pembayaran tercatat,
+  // agar data uang tidak ikut hilang; pesanan Dibatalkan tanpa pembayaran ikut dihapus.
+  async function hapus(b: Batch) {
+    setError('')
+    const supabase = createClient()
+    const { data: orders, error: e1 } = await supabase.from('orders').select('id, status').eq('batch_id', b.id)
+    if (e1) return setError(errMsg(e1))
+    const list = (orders ?? []) as { id: string; status: string }[]
+    const aktif = list.filter((o) => o.status !== 'dibatalkan').length
+    if (aktif > 0) {
+      return setError(`Batch “${b.nama}” masih punya ${aktif} pesanan aktif. Batalkan atau pindahkan pesanan itu dulu, atau tandai batch Selesai.`)
+    }
+    const ids = list.map((o) => o.id)
+    if (ids.length) {
+      const { count, error: e2 } = await supabase.from('payments').select('id', { count: 'exact', head: true }).in('order_id', ids)
+      if (e2) return setError(errMsg(e2))
+      if (count) return setError(`Batch “${b.nama}” punya pembayaran tercatat, jadi tidak bisa dihapus. Tandai batch Selesai saja.`)
+    }
+
+    const ok = await confirm({
+      title: `Hapus batch “${b.nama}”?`, danger: true, confirmLabel: 'Hapus batch', cancelLabel: 'Kembali',
+      body: <>Batch, daftar produk & kuotanya, serta link pemesanannya akan dihapus permanen.
+        {ids.length > 0 && <> {ids.length} pesanan Dibatalkan di batch ini ikut terhapus.</>} Tindakan ini tidak bisa dibatalkan.</>,
+    })
+    if (!ok) return
+    if (ids.length) {
+      const { error: e3 } = await supabase.from('orders').delete().in('id', ids)
+      if (e3) return setError(errMsg(e3))
+    }
+    const { error: e4 } = await supabase.from('po_batches').delete().eq('id', b.id)
+    if (e4) return setError(errMsg(e4))
+    await reload()
+    loadKuota()
+  }
+
   async function copy(b: Batch) {
     try {
       await navigator.clipboard.writeText(linkPemesanan(b.slug))
@@ -86,22 +123,23 @@ export default function BatchPage() {
     <>
       <PageHeader title="Batch PO" subtitle="Setiap pesanan masuk ke tepat satu batch."
         action={<Button onClick={() => setEditing({ status: 'buka' })}>+ Buat batch</Button>} />
+      {error && <Alert>{error}</Alert>}
 
       {loading ? <Loading /> : batches.length === 0 ? (
         <Empty title="Belum ada batch" action={<Button className="px-5" onClick={() => setEditing({ status: 'buka' })}>+ Buat batch</Button>}>
           Buat batch PO pertama, lalu bagikan link pemesanannya ke pembeli.
         </Empty>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] gap-4">
+        <div className={CARD_GRID}>
           {batches.map((b) => {
             const next = NEXT_STATUS[b.status]
             const rows = kuota[b.id] ?? []
             return (
-              <div key={b.id} className={cx('flex flex-col gap-3 rounded-card bg-surface px-6 py-4 outline-2 -outline-offset-2',
+              <div key={b.id} className={cx('flex flex-col gap-4 bg-surface outline-2 -outline-offset-2', CARD.list,
                 b.id === batchId ? 'outline-accent' : 'outline-transparent')}>
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="text-[21px] font-bold leading-tight">{b.nama}</div>
+                  <div className="min-w-0">
+                    <div className="text-card font-bold">{b.nama}</div>
                     <div className="mt-1 text-sm text-neutral-800">
                       Buka {tanggal(b.tanggal_buka, { day: 'numeric', month: 'short' })} · Tutup {tanggal(b.tanggal_tutup, { day: 'numeric', month: 'short' })}
                     </div>
@@ -113,7 +151,7 @@ export default function BatchPage() {
                 </div>
 
                 {rows.length > 0 && (
-                  <div className="flex flex-col gap-2 py-3">
+                  <div className="flex flex-col gap-2">
                     {rows.map((k) => {
                       const ratio = k.kuota ? k.terpakai / k.kuota : 1
                       const over = k.terpakai > k.kuota
@@ -135,7 +173,7 @@ export default function BatchPage() {
 
                 <div className="flex flex-col gap-2 rounded-lg bg-sage-200 px-4 py-3 text-sage-900">
                   <div className="text-sm font-bold">Link pemesanan</div>
-                  <div className="break-all text-[15px]">{copyFail === b.id ? linkPemesanan(b.slug) : `/po/${b.slug}`}</div>
+                  <div className="break-all text-label">{copyFail === b.id ? linkPemesanan(b.slug) : `/po/${b.slug}`}</div>
                   {copyFail === b.id && <div role="status" className="text-sm font-semibold">Gagal menyalin otomatis. Tahan teks link di atas untuk menyalin.</div>}
                   {b.status !== 'buka' && <div className="text-sm">Link menerima pesanan hanya saat status Buka.</div>}
                   <div className="flex flex-wrap gap-2">
@@ -143,7 +181,7 @@ export default function BatchPage() {
                       <Copy size={16} {...ICON} />{copied === b.id ? 'Tersalin' : 'Salin link'}
                     </Button>
                     <Button variant="secondary" className="min-h-[44px] border-sage-500" onClick={() => shareWa(b)}>
-                      <Share2 size={16} {...ICON} />Bagikan ke WA
+                      <Share2 size={16} {...ICON} />Kirim ke WA
                     </Button>
                     <a href={`/po/${b.slug}`} target="_blank" rel="noopener" className="btn btn-ghost min-h-[44px] text-sage-800 hover:text-sage-800">
                       <ExternalLink size={16} {...ICON} />Buka
@@ -151,9 +189,10 @@ export default function BatchPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" className="min-h-[44px]" onClick={() => { setBatchId(b.id); router.push('/pesanan') }}>Lihat pesanan</Button>
-                  <Button variant="secondary" className="min-h-[44px]" onClick={() => setEditing(b)}>Edit</Button>
+                {/* Satu aksi utama; sisanya tombol teks agar tidak bersaing */}
+                <div className="mt-auto flex flex-wrap gap-2">
+                  <Button className="min-h-[44px] flex-1 px-5" onClick={() => { setBatchId(b.id); router.push('/pesanan') }}>Lihat pesanan</Button>
+                  <Button variant="ghost" className="min-h-[44px]" onClick={() => setEditing(b)}>Edit</Button>
                   {next && <Button variant="ghost" className="min-h-[44px]" onClick={() => advance(b)}>{next.label}</Button>}
                 </div>
               </div>
@@ -164,15 +203,19 @@ export default function BatchPage() {
 
       {editing && (
         <BatchForm batch={editing} onClose={() => setEditing(null)}
-          onSaved={async (id) => { setEditing(null); await reload(); setBatchId(id); loadKuota() }} />
+          onSaved={async (id) => { setEditing(null); await reload(); setBatchId(id); loadKuota() }}
+          onDelete={() => { const b = editing as Batch; setEditing(null); hapus(b) }} />
       )}
+      {confirmDialog}
     </>
   )
 }
 
 interface MenuRow { dijual: boolean; kuota: string }
 
-function BatchForm({ batch, onClose, onSaved }: { batch: Partial<Batch>; onClose: () => void; onSaved: (id: string) => void }) {
+function BatchForm({ batch, onClose, onSaved, onDelete }: {
+  batch: Partial<Batch>; onClose: () => void; onSaved: (id: string) => void; onDelete: () => void
+}) {
   const [form, setForm] = useState({
     nama: batch.nama ?? '',
     tanggal_buka: batch.tanggal_buka ?? '',
@@ -265,7 +308,7 @@ function BatchForm({ batch, onClose, onSaved }: { batch: Partial<Batch>; onClose
         </Field>
 
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-          <legend className="mb-1 p-0 text-[15px] font-bold">Produk yang dijual</legend>
+          <legend className="mb-1 p-0 text-label font-bold">Produk yang dijual</legend>
           <p className="m-0 text-sm text-neutral-800">Hanya produk yang dicentang tampil di link pemesanan. Kuota boleh dikosongkan (tanpa batas).</p>
           {products.length === 0 ? <Alert tone="warn">Belum ada produk aktif. Tambahkan di menu Produk.</Alert> : (
             <div className="flex flex-col rounded-lg bg-bg px-4 py-1">
@@ -273,7 +316,7 @@ function BatchForm({ batch, onClose, onSaved }: { batch: Partial<Batch>; onClose
                 const r = menu[p.id] ?? { dijual: false, kuota: '' }
                 return (
                   <div key={p.id} className="flex items-center gap-3 border-b border-divider py-1 last:border-0">
-                    <label className="flex min-h-[48px] min-w-0 flex-1 cursor-pointer items-center gap-3">
+                    <label className="flex min-h-[52px] min-w-0 flex-1 cursor-pointer items-center gap-3">
                       <input type="checkbox" checked={r.dijual} onChange={(e) => setRow(p.id, { dijual: e.target.checked })}
                         className="size-[22px] shrink-0 accent-accent" />
                       <span className={cx('font-semibold', !r.dijual && 'text-neutral-700')}>{p.nama}</span>
@@ -293,7 +336,15 @@ function BatchForm({ batch, onClose, onSaved }: { batch: Partial<Batch>; onClose
         </Field>
         {!batch.id && <div className="text-sm font-semibold text-sage-800">Link pemesanan dibuat otomatis setelah batch disimpan.</div>}
 
-        <Button type="submit" disabled={busy} className="min-h-[50px]">{busy ? 'Menyimpan…' : 'Simpan batch'}</Button>
+        <Button type="submit" disabled={busy} className="btn-lg">{busy ? 'Menyimpan…' : 'Simpan batch'}</Button>
+        {batch.id && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-4">
+            <span className="text-sm text-neutral-800">PO tidak jadi? Hapus batch ini.</span>
+            <Button variant="ghost" className="text-accent-800 hover:text-accent-800" disabled={busy} onClick={onDelete}>
+              <Trash2 size={16} {...ICON} />Hapus batch
+            </Button>
+          </div>
+        )}
       </form>
     </Modal>
   )

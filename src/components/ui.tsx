@@ -41,13 +41,13 @@ export function Field({ label, helper, error, children, className, htmlFor, requ
   }, [htmlFor, error, helper, errId, helpId])
   return (
     <div className={cx('flex flex-col', className)}>
-      <label htmlFor={htmlFor} className="mb-[5px] text-[15px] font-bold">
+      <label htmlFor={htmlFor} className="mb-[5px] text-label font-bold">
         {label}{required && <span className="text-accent-700" aria-hidden="true"> *</span>}
         {required && <span className="sr-only"> (wajib)</span>}
       </label>
       {children}
       {helper && <div id={helpId} className="mt-1 text-sm text-neutral-800">{helper}</div>}
-      {error && <div id={errId} role="alert" className="mt-1 text-[15px] font-bold text-accent-800">{error}</div>}
+      {error && <div id={errId} role="alert" className="mt-1 text-label font-bold text-accent-800">{error}</div>}
     </div>
   )
 }
@@ -55,14 +55,26 @@ export function Field({ label, helper, error, children, className, htmlFor, requ
 /** Input di dalam kartu memakai latar krem agar kontras dengan permukaan pasir */
 export const inputCls = 'input bg-bg'
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx('rounded-card bg-surface px-6 py-4', className)}>{children}</section>
+/** Dua ukuran kartu saja: `list` untuk item di grid/daftar, `panel` untuk bagian besar halaman */
+export const CARD = {
+  list: 'rounded-tile p-5',
+  panel: 'rounded-card p-6',
+} as const
+
+/** Grid kartu daftar: lebar minimal 300px, satu kolom penuh di HP */
+export const CARD_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4'
+
+/** Kartu item nonaktif/dibatalkan: tetap berpermukaan, dibedakan garis putus-putus */
+export const INACTIVE = 'border-2 border-dashed border-neutral-400'
+
+export function Card({ children, className, size = 'panel' }: { children: ReactNode; className?: string; size?: keyof typeof CARD }) {
+  return <section className={cx('bg-surface', CARD[size], className)}>{children}</section>
 }
 
 /** Label kecil di atas judul: titik terakota + nama batch */
 export function Kicker({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 text-[15px] font-bold leading-snug text-accent-700">
+    <div className="flex items-center gap-2 text-label font-bold leading-snug text-accent-700">
       <span className="size-[10px] shrink-0 rounded-full bg-accent" />{children}
     </div>
   )
@@ -106,8 +118,8 @@ export function OrderTags({ sumber, ganda }: { sumber: 'admin' | 'link'; ganda?:
   if (sumber !== 'link' && !ganda) return null
   return (
     <span className="inline-flex flex-wrap gap-1.5">
-      {sumber === 'link' && <span className="tag bg-accent-200 text-[13px] font-bold text-accent-800">Dari link</span>}
-      {ganda && <span className="tag bg-accent-700 text-[13px] font-bold text-accent-100" title="Pembeli ini punya lebih dari 1 pesanan aktif di batch ini">Cek ganda</span>}
+      {sumber === 'link' && <span className="tag bg-accent-200 text-caption font-bold text-accent-800">Dari link</span>}
+      {ganda && <span className="tag bg-accent-700 text-caption font-bold text-accent-100" title="Pembeli ini punya lebih dari 1 pesanan aktif di batch ini">Cek ganda</span>}
     </span>
   )
 }
@@ -121,15 +133,15 @@ export function Alert({ tone = 'bad', children }: { tone?: 'bad' | 'warn' | 'ok'
     bad: 'rounded-lg bg-accent-700 text-accent-100',
     warn: 'rounded-lg bg-accent-200 text-accent-900',
     ok: 'rounded-full bg-sage-200 text-sage-900',
-    muted: 'rounded-lg bg-neutral-200 text-[14px] font-semibold text-neutral-800',
+    muted: 'rounded-lg bg-neutral-200 text-sm font-semibold text-neutral-800',
   }[tone]
   return <div role="alert" className={cx('px-4 py-3 font-bold', cls)}>{children}</div>
 }
 
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-start gap-3 rounded-card bg-surface px-6 py-8">
-      <div className="text-xl font-bold">{title}</div>
+    <div className={cx('flex flex-col items-start gap-3 bg-surface', CARD.panel)}>
+      <div className="text-section font-bold">{title}</div>
       {children && <p className="m-0 max-w-[52ch] text-neutral-800">{children}</p>}
       {action}
     </div>
@@ -195,7 +207,7 @@ export function Modal({ open, onClose, title, children, width = 480 }: { open: b
       <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className="dialog my-6" style={{ width: `min(${width}px, 100%)` }}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="min-w-0 flex-1 text-[22px]">{title}</h2>
+          <h2 className="min-w-0 flex-1 text-section">{title}</h2>
           <button type="button" onClick={onClose} className="btn btn-icon hover:bg-neutral-300" aria-label="Tutup">
             <X size={18} {...ICON} />
           </button>
@@ -219,11 +231,11 @@ export function Chip({ children, onRemove, label }: { children: ReactNode; onRem
 }
 
 /** Foto produk bulat; tanpa foto tampil ikon gambar */
-export function ProductPhoto({ url, size, alt = '' }: { url: string | null; size: number; alt?: string }) {
+export function ProductPhoto({ url, size, alt = '', washed = true }: { url: string | null; size: number; alt?: string; washed?: boolean }) {
   return (
     <div className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-neutral-300 text-neutral-700" style={{ width: size, height: size }}>
       {url
-        ? <img src={url} alt={alt} loading="lazy" className="washed size-full object-cover" />
+        ? <img src={url} alt={alt} loading="lazy" className={cx('size-full object-cover', washed && 'washed')} />
         : <ImageIcon size={Math.round(size * 0.32)} {...ICON} />}
     </div>
   )
@@ -246,7 +258,7 @@ export function Pager({ page, pages, per, onPage, onPer, info, label = 'Halaman'
   return (
     <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-[28px] bg-surface py-2 pl-4 pr-2 sm:rounded-full">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2.5 text-[15px] font-semibold">
+        <label className="flex items-center gap-2.5 text-label font-semibold">
           Tampilkan
           <select className="input w-auto min-h-[44px] bg-bg font-bold" value={per} aria-label="Jumlah data per halaman"
             onChange={(e) => onPer(+e.target.value)}>
@@ -254,7 +266,7 @@ export function Pager({ page, pages, per, onPage, onPer, info, label = 'Halaman'
           </select>
           per halaman
         </label>
-        {info && <span className="text-[15px] text-neutral-800">{info}</span>}
+        {info && <span className="text-label text-neutral-800">{info}</span>}
       </div>
       {pages > 1 && (
         <nav aria-label={label} className="flex flex-wrap items-center gap-1.5">

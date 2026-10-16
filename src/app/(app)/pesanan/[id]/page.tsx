@@ -15,8 +15,8 @@ import { useBatch } from '@/components/batch-context'
 import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, Toast, cx, inputCls, kodePesanan, useConfirm } from '@/components/ui'
 
 const FLOW: OrderStatus[] = ['baru', 'dikonfirmasi', 'diproduksi', 'siap', 'selesai']
-const PANEL = 'rounded-card bg-surface px-6 py-4'
-const SIDE = 'flex flex-col gap-3 rounded-card bg-neutral-100 px-6 py-4 shadow-sm'
+const PANEL = 'rounded-card bg-surface p-6'
+const SIDE = 'flex flex-col gap-3 rounded-card bg-neutral-100 p-6 shadow-sm'
 
 export default function PesananDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -135,7 +135,7 @@ export default function PesananDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" onClick={backToList} className="-ml-2.5 px-2.5 text-[15px]">
+        <Button variant="ghost" onClick={backToList} className="-ml-2.5 px-2.5 text-label">
           <ArrowLeft size={18} {...ICON} />Pesanan
         </Button>
         {!selesai && (
@@ -165,15 +165,15 @@ export default function PesananDetailPage() {
       {lebih > 0 && !batal && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}. Periksa kembali atau kembalikan selisihnya.</Alert>}
 
       {order.sumber === 'link' && order.status === 'baru' && (
-        <section aria-label="Pesanan dari link" className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card bg-accent-200 px-6 py-4 text-accent-900">
+        <section aria-label="Pesanan dari link" className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card bg-accent-200 p-6 text-accent-900">
           <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-0.5">
-            <div className="text-lg font-bold">Pesanan masuk dari link pemesanan</div>
-            <div className="text-[15px]">Pembeli mengisi sendiri. Cek item dan nomor WA, lalu konfirmasi.</div>
-            {ganda && <div className="mt-1 text-[15px] font-bold">Nomor ini punya pesanan aktif lain di batch ini. Pastikan bukan pesanan ganda.</div>}
+            <div className="text-card font-bold">Pesanan masuk dari link pemesanan</div>
+            <div className="text-label">Pembeli mengisi sendiri. Cek item dan nomor WA, lalu konfirmasi.</div>
+            {ganda && <div className="mt-1 text-label font-bold">Nomor ini punya pesanan aktif lain di batch ini. Pastikan bukan pesanan ganda.</div>}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button className="min-h-[46px] px-5" onClick={() => changeStatus('dikonfirmasi')}>Konfirmasi pesanan</Button>
-            <Button variant="secondary" className="min-h-[46px] border-accent-500" onClick={() => changeStatus('dibatalkan')}>Tolak</Button>
+            <Button className="px-5" onClick={() => changeStatus('dikonfirmasi')}>Konfirmasi pesanan</Button>
+            <Button variant="secondary" className="border-accent-500" onClick={() => changeStatus('dibatalkan')}>Tolak</Button>
           </div>
         </section>
       )}
@@ -181,7 +181,7 @@ export default function PesananDetailPage() {
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-4">
           <section className={PANEL}>
-            <h2 className="mb-2 text-xl">Item</h2>
+            <h2 className="mb-2 text-section">Item</h2>
             {items.map((i) => (
               <div key={i.id} className="flex justify-between gap-3 border-b border-divider py-3">
                 <div>
@@ -195,12 +195,12 @@ export default function PesananDetailPage() {
             <dl className="mt-3 flex flex-col gap-1">
               <div className="flex justify-between"><dt className="text-neutral-800">Subtotal</dt><dd className="m-0">{rupiah(order.subtotal)}</dd></div>
               <div className="flex justify-between"><dt className="text-neutral-800">Ongkir</dt><dd className="m-0">{rupiah(order.ongkir)}</dd></div>
-              <div className="mt-1 flex items-baseline justify-between"><dt className="text-xl font-bold">Total</dt><dd className="m-0 text-2xl font-bold">{rupiah(order.total)}</dd></div>
+              <div className="mt-1 flex items-baseline justify-between"><dt className="text-section font-bold">Total</dt><dd className="m-0 text-stat font-bold">{rupiah(order.total)}</dd></div>
             </dl>
           </section>
 
           <section className={PANEL}>
-            <h2 className="mb-3 text-xl">Pengambilan</h2>
+            <h2 className="mb-3 text-section">Pengambilan</h2>
             <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5">
               <dt className="text-neutral-800">Cara terima</dt><dd className="m-0">{CARA_TERIMA[order.cara_terima]}</dd>
               <dt className="text-neutral-800">Tanggal</dt><dd className="m-0">{tanggal(order.tanggal_ambil)} {jam(order.jam_ambil)}</dd>
@@ -216,14 +216,14 @@ export default function PesananDetailPage() {
         <div className="flex min-w-0 max-w-[400px] flex-[1_1_320px] flex-col gap-4">
           <section className={SIDE}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-xl">Pembayaran</h2>
+              <h2 className="text-section">Pembayaran</h2>
               <BayarBadge status={order.status_bayar} dibatalkan={batal} />
             </div>
             <dl className="m-0 flex flex-col gap-1">
               <div className="flex justify-between"><dt className="text-neutral-800">Terbayar</dt><dd className="m-0">{rupiah(order.terbayar)}</dd></div>
               <div className="flex items-baseline justify-between">
                 <dt className="font-bold">Sisa tagihan</dt>
-                <dd className={cx('m-0 text-2xl font-bold', sisaAktif ? 'text-accent-700' : 'text-sage-700')}>{rupiah(batal ? 0 : order.sisa)}</dd>
+                <dd className={cx('m-0 text-stat font-bold', sisaAktif ? 'text-accent-700' : 'text-sage-700')}>{rupiah(batal ? 0 : order.sisa)}</dd>
               </div>
             </dl>
             {payments.length > 0 && (
@@ -248,12 +248,12 @@ export default function PesananDetailPage() {
                 ))}
               </div>
             )}
-            {!batal && <Button variant={order.sumber === 'link' && order.status === 'baru' ? 'secondary' : 'primary'} className="min-h-[46px]" onClick={() => setPaying(true)}>Catat pembayaran</Button>}
+            {!batal && <Button variant={order.sumber === 'link' && order.status === 'baru' ? 'secondary' : 'primary'} onClick={() => setPaying(true)}>Catat pembayaran</Button>}
           </section>
 
           <section className={SIDE}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-xl">Status pesanan</h2>
+              <h2 className="text-section">Status pesanan</h2>
               <OrderStatusBadge status={order.status} />
             </div>
             {!batal && (
@@ -332,7 +332,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
         {error && <Alert>{error}</Alert>}
         <Field label="Jumlah (Rp)" htmlFor="pay-jumlah" helper={`Sisa tagihan ${rupiah(order.sisa)}`}>
           <input id="pay-jumlah" autoFocus inputMode="numeric" value={jumlah} onChange={(e) => { setJumlah(e.target.value); setOkLebih(false) }}
-            className={cx(inputCls, 'min-h-[48px] text-xl font-bold')} />
+            className={cx(inputCls, 'min-h-[52px] text-section font-bold')} />
         </Field>
         {lebih > 0 && <Alert tone="warn">Kelebihan bayar {rupiah(lebih)}.{okLebih && ' Tekan tombol simpan sekali lagi bila memang benar.'}</Alert>}
         {quick.length > 0 && (
@@ -345,7 +345,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
           </div>
         )}
         <fieldset className="m-0 border-0 p-0">
-          <legend className="mb-[5px] p-0 text-[15px] font-bold">Metode</legend>
+          <legend className="mb-[5px] p-0 text-label font-bold">Metode</legend>
           <div className="grid grid-cols-3 gap-1.5">
             {(Object.keys(METODE) as Metode[]).map((m) => (
               <button key={m} type="button" aria-pressed={metode === m} onClick={() => setMetode(m)}
@@ -361,7 +361,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
         </Field>
         {metode !== 'tunai' && (
           <div className="flex flex-col">
-            <div className="mb-[5px] text-[15px] font-bold">Bukti transfer (opsional)</div>
+            <div className="mb-[5px] text-label font-bold">Bukti transfer (opsional)</div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="btn btn-secondary relative bg-bg">
                 {file ? 'Ganti foto' : 'Pilih foto'}
@@ -372,7 +372,7 @@ function PaymentForm({ order, onClose, onSaved }: { order: OrderSummary; onClose
             </div>
           </div>
         )}
-        <Button type="submit" disabled={busy} className="min-h-[48px]">
+        <Button type="submit" disabled={busy} className="btn-lg">
           {busy ? 'Menyimpan…' : okLebih && lebih > 0 ? `Tetap simpan (lebih ${rupiah(lebih)})` : 'Simpan pembayaran'}
         </Button>
       </form>

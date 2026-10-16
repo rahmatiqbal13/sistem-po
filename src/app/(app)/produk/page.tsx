@@ -7,7 +7,7 @@ import type { Product } from '@/lib/types'
 import { errMsg, parseRupiah, rupiah } from '@/lib/format'
 import { hargaDariMargin, hitungHpp, marginPersen, type RincianHpp } from '@/lib/calc'
 import { fotoUrl, kompresFoto } from '@/lib/foto'
-import { Alert, Button, Empty, Field, ICON, Loading, Modal, PageHeader, ProductPhoto, cx, inputCls } from '@/components/ui'
+import { Alert, Button, CARD, CARD_GRID, Empty, Field, ICON, INACTIVE, Loading, Modal, PageHeader, ProductPhoto, cx, inputCls } from '@/components/ui'
 
 export default function ProdukPage() {
   const [products, setProducts] = useState<Product[] | null>(null)
@@ -46,7 +46,7 @@ export default function ProdukPage() {
             <ViewToggle view={view} onChange={setView} />
           </div>
           {view === 'card' ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4">
+            <div className={CARD_GRID}>
               {products.map((p) => <ProductCard key={p.id} p={p} onToggle={() => toggle(p)} onEdit={() => setEditing(p)} />)}
             </div>
           ) : (
@@ -84,7 +84,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
     <div role="group" aria-label="Tampilan" className="flex rounded-full bg-surface p-1">
       {opts.map(([v, label, Icon]) => (
         <button key={v} type="button" aria-pressed={view === v} onClick={() => onChange(v)}
-          className={cx('flex min-h-[40px] items-center gap-2 rounded-full px-4 text-[15px] font-semibold',
+          className={cx('flex min-h-[44px] items-center gap-2 rounded-full px-4 text-label font-semibold',
             view === v ? 'bg-accent text-ink' : 'text-neutral-800 hover:text-ink')}>
           <Icon size={16} {...ICON} />{label}
         </button>
@@ -95,7 +95,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
 
 function StatusTag({ aktif }: { aktif: boolean }) {
   return (
-    <span className={cx('tag shrink-0 text-[13px]', aktif ? 'bg-sage-200 text-sage-900' : 'bg-neutral-300 text-neutral-800')}>
+    <span className={cx('tag shrink-0 text-caption', aktif ? 'bg-sage-200 text-sage-900' : 'bg-neutral-300 text-neutral-800')}>
       {aktif ? 'Aktif' : 'Nonaktif'}
     </span>
   )
@@ -110,33 +110,33 @@ function labaOf(p: Product) {
 function ProductCard({ p, onToggle, onEdit }: { p: Product; onToggle: () => void; onEdit: () => void }) {
   const { harga, hpp, laba, margin } = labaOf(p)
   return (
-    <article className={cx('flex flex-col gap-4 rounded-card p-5', p.aktif ? 'bg-surface' : 'bg-neutral-200 text-neutral-800')}>
-      <div className="flex items-start gap-4">
-        <ProductPhoto url={fotoUrl(p.foto_path)} size={72} />
+    <article className={cx('flex flex-col gap-4 bg-surface', CARD.list, !p.aktif && INACTIVE)}>
+      <div className={cx('flex items-start gap-4', !p.aktif && 'opacity-70')}>
+        <ProductPhoto url={fotoUrl(p.foto_path)} size={64} />
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
           <StatusTag aktif={p.aktif} />
-          <div className="line-clamp-2 text-[17px] font-bold leading-snug text-ink" title={p.nama}>{p.nama}</div>
+          <div className="line-clamp-2 text-card font-bold text-ink" title={p.nama}>{p.nama}</div>
         </div>
       </div>
 
-      <dl className="m-0 grid grid-cols-3 divide-x divide-divider rounded-2xl bg-bg py-3 tabular-nums">
+      <dl className={cx('m-0 grid grid-cols-3 divide-x divide-divider rounded-lg bg-bg py-3 tabular-nums', !p.aktif && 'opacity-70')}>
         <div className="px-3">
-          <dt className="text-[12px] font-semibold uppercase tracking-wide text-neutral-800">Harga</dt>
-          <dd className="m-0 mt-0.5 text-[15px] font-bold text-ink">{rupiah(harga)}</dd>
+          <dt className="text-caption font-semibold text-neutral-800">Harga</dt>
+          <dd className="m-0 mt-0.5 text-base font-bold text-ink">{rupiah(harga)}</dd>
         </div>
         <div className="px-3">
-          <dt className="text-[12px] font-semibold uppercase tracking-wide text-neutral-800">HPP</dt>
-          <dd className="m-0 mt-0.5 text-[15px] font-bold text-ink">{hpp == null ? '—' : rupiah(hpp)}</dd>
+          <dt className="text-caption font-semibold text-neutral-800">HPP</dt>
+          <dd className="m-0 mt-0.5 text-base font-bold text-ink">{hpp == null ? '—' : rupiah(hpp)}</dd>
         </div>
         <div className="px-3">
-          <dt className="text-[12px] font-semibold uppercase tracking-wide text-neutral-800">Laba</dt>
-          <dd className={cx('m-0 mt-0.5 text-[15px] font-bold', laba != null && laba < 0 ? 'text-accent-800' : 'text-sage-800')}>
+          <dt className="text-caption font-semibold text-neutral-800">Laba</dt>
+          <dd className={cx('m-0 mt-0.5 text-base font-bold', laba != null && laba < 0 ? 'text-accent-800' : 'text-sage-800')}>
             {laba == null ? '—' : rupiah(laba)}
           </dd>
-          {margin != null && <dd className="m-0 text-[12px] text-neutral-800">{margin}%</dd>}
+          {margin != null && <dd className="m-0 text-caption text-neutral-800">{margin}%</dd>}
         </div>
       </dl>
-      {hpp == null && <p className="-mt-2 m-0 text-[13px] text-neutral-800">Isi HPP lewat Edit untuk melihat laba.</p>}
+      {hpp == null && <p className="m-0 -mt-2 text-caption text-neutral-800">Isi HPP lewat Edit untuk melihat laba.</p>}
 
       <div className="mt-auto flex gap-2">
         <Button variant="secondary" className="min-h-[44px] flex-1" onClick={onToggle}>{p.aktif ? 'Nonaktifkan' : 'Aktifkan'}</Button>
@@ -165,7 +165,7 @@ function ProductTable({ products, onToggle, onEdit }: { products: Product[]; onT
           {products.map((p) => {
             const { harga, hpp, laba, margin } = labaOf(p)
             return (
-              <tr key={p.id} className={cx(!p.aktif && 'text-neutral-800')}>
+              <tr key={p.id} className={cx(!p.aktif && 'text-neutral-800 [&_img]:opacity-60')}>
                 <td>
                   <div className="flex items-center gap-3">
                     <ProductPhoto url={fotoUrl(p.foto_path)} size={44} />
@@ -181,8 +181,8 @@ function ProductTable({ products, onToggle, onEdit }: { products: Product[]; onT
                 <td><StatusTag aktif={p.aktif} /></td>
                 <td>
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" className="min-h-[40px] px-3" onClick={() => onEdit(p)}>Edit</Button>
-                    <Button variant="ghost" className="min-h-[40px] px-3 text-neutral-800" onClick={() => onToggle(p)}>
+                    <Button variant="ghost" className="min-h-[44px] px-3" onClick={() => onEdit(p)}>Edit</Button>
+                    <Button variant="ghost" className="min-h-[44px] px-3 text-neutral-800" onClick={() => onToggle(p)}>
                       {p.aktif ? 'Nonaktifkan' : 'Aktifkan'}
                     </Button>
                   </div>
@@ -268,7 +268,7 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
           </div>
         )}
         <div className="flex flex-col">
-          <div className="mb-[5px] text-[15px] font-bold">Foto (opsional)</div>
+          <div className="mb-[5px] text-label font-bold">Foto (opsional)</div>
           <div className="flex items-center gap-4">
             <ProductPhoto url={preview} size={96} alt="Pratinjau foto produk" />
             <div className="flex flex-col items-start gap-2">
@@ -295,7 +295,7 @@ function ProductForm({ product, onClose, onSaved }: { product: Partial<Product>;
           </div>
           <div className="mt-1 text-sm text-neutral-800">Tampil di link pemesanan. Foto otomatis diperkecil sebelum diunggah.</div>
         </div>
-        <Button type="submit" disabled={busy} className="min-h-[50px]">{busy ? 'Menyimpan…' : 'Simpan produk'}</Button>
+        <Button type="submit" disabled={busy} className="btn-lg">{busy ? 'Menyimpan…' : 'Simpan produk'}</Button>
       </form>
     </Modal>
   )
@@ -322,8 +322,8 @@ function HppFields({ hpp, setHpp, rincian, setRincian, hppDariRincian }: {
   )
 
   return (
-    <fieldset className="m-0 flex flex-col gap-3 rounded-card border border-divider p-4">
-      <legend className="px-1 text-[15px] font-bold">Hitung HPP dari rincian biaya (opsional)</legend>
+    <fieldset className="m-0 flex flex-col gap-3 rounded-lg border border-divider p-4">
+      <legend className="px-1 text-label font-bold">Hitung HPP dari rincian biaya (opsional)</legend>
       <p className="m-0 text-sm text-neutral-800">Isi semua biaya untuk satu kali produksi (bahan, kemasan, gas, dll), lalu berapa pcs yang dihasilkan. Biarkan kosong untuk melewati.</p>
       {rincian.biaya.map((b, i) => (
         <div key={i} className="flex items-center gap-2">
@@ -344,7 +344,7 @@ function HppFields({ hpp, setHpp, rincian, setRincian, hppDariRincian }: {
           onChange={(e) => setRincian({ ...rincian, hasil: parseRupiah(e.target.value) })} className={inputCls} />
       </Field>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span>HPP per pcs: <b className="text-[19px]">{hppDariRincian == null ? '—' : rupiah(hppDariRincian)}</b></span>
+        <span>HPP per pcs: <b className="text-card">{hppDariRincian == null ? '—' : rupiah(hppDariRincian)}</b></span>
         <Button variant="ghost" className="min-h-[44px]"
           onClick={() => { if (hppDariRincian) setHpp(String(hppDariRincian)); setRincian(null) }}>
           Isi HPP manual

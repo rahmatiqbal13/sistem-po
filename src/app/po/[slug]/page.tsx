@@ -60,7 +60,7 @@ export default function PemesananPage() {
     return (
       <Shell>
         <div className="flex flex-col items-start gap-3 rounded-card bg-surface p-6">
-          <h1 className="text-[36px] md:text-[36px]">Link tidak ditemukan</h1>
+          <h1>Link tidak ditemukan</h1>
           <p className="m-0 text-neutral-800">Periksa kembali link dari penjual.</p>
         </div>
       </Shell>
@@ -133,8 +133,8 @@ export default function PemesananPage() {
         <header className="relative flex flex-col gap-1.5 pr-[72px]">
           <div aria-hidden="true" className="absolute -right-10 -top-[50px] -z-10 size-[150px] rounded-full bg-accent-300 opacity-55" />
           <div aria-hidden="true" className="absolute right-[70px] top-[60px] -z-10 size-[64px] rounded-full bg-sage-300 opacity-70" />
-          <div className="text-[15px] font-bold text-accent-700">{batch.nama_toko}</div>
-          <h1 className="text-[36px] md:text-[36px]">{batch.nama}</h1>
+          <div className="text-label font-bold text-accent-700">{batch.nama_toko}</div>
+          <h1>{batch.nama}</h1>
           {(batch.tanggal_tutup || batch.tanggal_ambil) && (
             <div className="text-neutral-800">
               {batch.tanggal_tutup && <>Ditutup {tanggal(batch.tanggal_tutup, TGL_PANJANG)}. </>}
@@ -150,7 +150,7 @@ export default function PemesananPage() {
           <div className="flex flex-col items-start gap-3 rounded-card bg-surface p-6">
             <h2>PO ini sudah ditutup</h2>
             <p className="m-0 text-neutral-800">Terima kasih. Pantau PO berikutnya lewat WhatsApp penjual.</p>
-            {batch.wa_admin && <a href={`https://wa.me/${batch.wa_admin}`} className="btn btn-primary min-h-[48px] px-[22px]">Hubungi penjual</a>}
+            {batch.wa_admin && <a href={`https://wa.me/${batch.wa_admin}`} className="btn btn-primary btn-lg">Hubungi penjual</a>}
           </div>
         ) : (
           <>
@@ -165,29 +165,29 @@ export default function PemesananPage() {
                 const habis = p.sisa === 0
                 const maxed = habis || (p.sisa !== null && n >= p.sisa) || n >= 50
                 return (
-                  <div key={p.id} className={cx('flex flex-col gap-3 rounded-card py-3 pl-3 pr-4 outline-2 -outline-offset-2',
-                    n > 0 ? 'outline-accent' : 'outline-transparent', habis ? 'bg-neutral-200' : 'bg-surface')}>
+                  <div key={p.id} className={cx('flex flex-col gap-3 rounded-tile p-4 outline-2 -outline-offset-2',
+                    n > 0 ? 'outline-accent' : 'outline-transparent', 'bg-surface', habis && 'border-2 border-dashed border-neutral-400 opacity-80')}>
                     <div className="flex flex-wrap items-center gap-3">
-                      <ProductPhoto url={fotoUrl(p.foto_path)} size={88} alt={p.nama} />
+                      <ProductPhoto url={fotoUrl(p.foto_path)} size={88} alt={p.nama} washed={false} />
                       <div className="flex min-w-[140px] flex-1 flex-col">
-                        <div className="text-lg font-bold leading-snug">{p.nama}</div>
+                        <div className="text-card font-bold leading-snug">{p.nama}</div>
                         <div className="font-bold text-accent-700">{rupiah(p.harga)}</div>
                         {p.sisa !== null && (
-                          <div className={cx('text-[15px]', habis ? 'font-bold text-accent-800' : 'text-neutral-800')}>{habis ? 'Habis' : `Sisa ${p.sisa}`}</div>
+                          <div className={cx('text-label', habis ? 'font-bold text-accent-800' : 'text-neutral-800')}>{habis ? 'Habis' : `Sisa ${p.sisa}`}</div>
                         )}
                       </div>
                       <div className="ml-auto flex items-center gap-1.5">
                         {n > 0 && (
                           <>
                             <button type="button" onClick={() => ubah(p, n - 1)} aria-label={`Kurangi ${p.nama}`}
-                              className="grid size-[46px] place-items-center rounded-full border border-divider bg-bg text-ink hover:bg-neutral-200">
+                              className="grid size-[44px] place-items-center rounded-full border border-divider bg-bg text-ink hover:bg-neutral-200">
                               <Minus size={18} {...ICON} />
                             </button>
-                            <span aria-live="polite" className="min-w-8 text-center text-xl font-bold">{n}</span>
+                            <span aria-live="polite" className="min-w-8 text-center text-section font-bold">{n}</span>
                           </>
                         )}
                         <button type="button" disabled={maxed} onClick={() => ubah(p, n + 1)} aria-label={`Tambah ${p.nama}`}
-                          className={cx('btn btn-primary min-h-[46px] min-w-[46px]', n > 0 ? 'px-0 text-xl' : 'px-5')}>
+                          className={cx('btn btn-primary min-w-[44px]', n > 0 ? 'px-0 text-section' : 'px-5')}>
                           {n > 0 ? '+' : 'Tambah'}
                         </button>
                       </div>
@@ -195,7 +195,7 @@ export default function PemesananPage() {
                     {n > 0 && (
                       <input value={catatanItem[p.id] ?? ''} maxLength={100} placeholder="Catatan (opsional), mis. tanpa sambal"
                         onChange={(e) => setCatatanItem((c) => ({ ...c, [p.id]: e.target.value }))}
-                        className="input min-h-[44px] bg-bg text-[15px]" aria-label={`Catatan untuk ${p.nama}`} />
+                        className="input min-h-[44px] bg-bg text-label" aria-label={`Catatan untuk ${p.nama}`} />
                     )}
                   </div>
                 )
@@ -206,19 +206,19 @@ export default function PemesananPage() {
               <h2>2. Data pemesan</h2>
               <Field label="Nama" htmlFor="f-nama" error={err.nama} required>
                 <input id="f-nama" value={nama} maxLength={80} autoComplete="name" aria-invalid={!!err.nama}
-                  onChange={(e) => setNama(e.target.value)} className="input min-h-[48px]" />
+                  onChange={(e) => setNama(e.target.value)} className="input" />
               </Field>
               <Field label="Nomor WhatsApp" htmlFor="f-wa" helper="Untuk konfirmasi pesanan. Contoh: 0812 3456 7890" error={err.wa} required>
                 <input id="f-wa" value={wa} inputMode="tel" autoComplete="tel" aria-invalid={!!err.wa}
-                  onChange={(e) => setWa(e.target.value)} className="input min-h-[48px]" />
+                  onChange={(e) => setWa(e.target.value)} className="input" />
               </Field>
               <label className="hidden" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} /></label>
               <div className="flex flex-col">
-                <div id="f-cara" className="mb-[5px] text-[15px] font-bold">Cara terima</div>
+                <div id="f-cara" className="mb-[5px] text-label font-bold">Cara terima</div>
                 <div role="radiogroup" aria-labelledby="f-cara" className="grid grid-cols-3 gap-1.5">
                   {(Object.keys(CARA) as CaraTerima[]).map((c) => (
                     <button key={c} type="button" role="radio" aria-checked={cara === c} onClick={() => setCara(c)}
-                      className={cx('min-h-[50px] rounded-full border px-1.5 text-[15px] font-bold leading-tight',
+                      className={cx('min-h-[44px] rounded-full border px-1.5 text-label font-bold leading-tight',
                         cara === c ? 'border-accent bg-accent text-ink' : 'border-divider bg-surface text-ink')}>
                       {CARA[c]}
                     </button>
@@ -244,10 +244,10 @@ export default function PemesananPage() {
         <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-lg bg-surface px-4 pb-[calc(13.2px+env(safe-area-inset-bottom))] pt-3 shadow-lg">
           <div className="mx-auto flex max-w-[640px] items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] text-neutral-800">{totalQty} item{cara !== 'pickup' && ' · belum termasuk ongkir'}</div>
-              <div className="text-2xl font-bold leading-tight">{rupiah(total)}</div>
+              <div className="text-label text-neutral-800">{totalQty} item{cara !== 'pickup' && ' · belum termasuk ongkir'}</div>
+              <div className="text-stat font-bold leading-tight">{rupiah(total)}</div>
             </div>
-            <Button className="min-h-[52px] px-[26px] text-[17px]" onClick={pesan}>Pesan sekarang</Button>
+            <Button className="btn-lg" onClick={pesan}>Pesan sekarang</Button>
           </div>
         </div>
       )}
@@ -259,7 +259,7 @@ export default function PemesananPage() {
             className="dialog max-h-[92dvh] w-[min(640px,100%)] overflow-y-auto rounded-b-none pb-[calc(26.4px+env(safe-area-inset-bottom))]">
             <div aria-hidden="true" className="h-[5px] w-[44px] self-center rounded-full bg-neutral-400" />
             <div>
-              <h2 id="rv-t" className="text-2xl">Periksa pesanan</h2>
+              <h2 id="rv-t" className="text-stat">Periksa pesanan</h2>
               <p className="mb-0 mt-1 text-neutral-800">Pastikan data sudah benar sebelum dikirim ke penjual.</p>
             </div>
             <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 rounded-lg bg-bg p-4">
@@ -274,11 +274,11 @@ export default function PemesananPage() {
                   <span>{p.nama} <b>×{qty[p.id]}</b></span><span className="whitespace-nowrap">{rupiah(p.harga * qty[p.id])}</span>
                 </div>
               ))}
-              <div className="mt-1 flex justify-between border-t border-divider pt-2 text-xl font-bold"><span>Total</span><span>{rupiah(total)}</span></div>
-              {cara !== 'pickup' && <p className="m-0 text-[15px] text-neutral-800">Belum termasuk ongkir. Penjual akan mengonfirmasi ongkir lewat WhatsApp.</p>}
+              <div className="mt-1 flex justify-between border-t border-divider pt-2 text-section font-bold"><span>Total</span><span>{rupiah(total)}</span></div>
+              {cara !== 'pickup' && <p className="m-0 text-label text-neutral-800">Belum termasuk ongkir. Penjual akan mengonfirmasi ongkir lewat WhatsApp.</p>}
             </div>
-            <Button className="min-h-[52px] text-[17px]" onClick={kirim} disabled={busy}>{busy ? 'Mengirim…' : 'Kirim pesanan'}</Button>
-            <Button variant="ghost" className="min-h-[46px] text-accent-800 hover:text-accent-800" onClick={() => setReview(false)} disabled={busy}>Ubah pesanan</Button>
+            <Button className="btn-lg" onClick={kirim} disabled={busy}>{busy ? 'Mengirim…' : 'Kirim pesanan'}</Button>
+            <Button variant="ghost" className="text-accent-800 hover:text-accent-800" onClick={() => setReview(false)} disabled={busy}>Ubah pesanan</Button>
           </div>
         </div>
       )}
@@ -308,33 +308,33 @@ function Sukses({ batch, hasil, cara, onLagi }: { batch: PublicBatch; hasil: Has
         <div className="grid size-[72px] place-items-center rounded-full bg-sage-600 text-sage-100">
           <Check size={36} {...ICON} />
         </div>
-        <h1 className="mt-2 text-[36px] md:text-[36px]">Pesanan diterima</h1>
-        <p className="m-0 text-neutral-800">Kode pesanan <b className="text-lg text-ink">#{hasil.kode}</b></p>
+        <h1 className="mt-2">Pesanan diterima</h1>
+        <p className="m-0 text-neutral-800">Kode pesanan <b className="text-card text-ink">#{hasil.kode}</b></p>
       </div>
 
-      <div className="flex flex-col gap-1.5 rounded-card bg-surface px-6 py-4">
+      <div className="flex flex-col gap-1.5 rounded-card bg-surface p-6">
         {hasil.items.map((i) => (
           <div key={i.nama} className="flex justify-between gap-3"><span>{i.nama} ×{i.qty}</span><span>{rupiah(i.harga * i.qty)}</span></div>
         ))}
-        <div className="mt-1 flex justify-between border-t border-divider pt-2 text-xl font-bold"><span>Total</span><span>{rupiah(hasil.subtotal)}</span></div>
-        {cara !== 'pickup' && <p className="m-0 text-[15px] text-neutral-800">Belum termasuk ongkir. Penjual akan mengonfirmasi ongkir.</p>}
+        <div className="mt-1 flex justify-between border-t border-divider pt-2 text-section font-bold"><span>Total</span><span>{rupiah(hasil.subtotal)}</span></div>
+        {cara !== 'pickup' && <p className="m-0 text-label text-neutral-800">Belum termasuk ongkir. Penjual akan mengonfirmasi ongkir.</p>}
       </div>
 
       {batch.info_pembayaran && (
-        <div className="rounded-card bg-sage-200 px-6 py-4 text-sage-900">
-          <div className="text-lg font-bold">Pembayaran</div>
+        <div className="rounded-card bg-sage-200 p-6 text-sage-900">
+          <div className="text-card font-bold">Pembayaran</div>
           <p className="mb-0 mt-1 whitespace-pre-line">{batch.info_pembayaran}</p>
-          <p className="mb-0 mt-2 text-[15px]">Setelah transfer, kirim bukti lewat WhatsApp ke penjual.</p>
+          <p className="mb-0 mt-2 text-label">Setelah transfer, kirim bukti lewat WhatsApp ke penjual.</p>
         </div>
       )}
 
       {batch.wa_admin && (
         <a href={`https://wa.me/${batch.wa_admin}?text=${encodeURIComponent(pesanWa)}`} target="_blank" rel="noopener"
-          className="btn btn-primary min-h-[52px]">
+          className="btn btn-primary btn-lg">
           <MessageCircle size={20} {...ICON} />Konfirmasi via WhatsApp
         </a>
       )}
-      <Button variant="ghost" className="min-h-[48px]" onClick={onLagi}>Buat pesanan lain</Button>
+      <Button variant="ghost" onClick={onLagi}>Buat pesanan lain</Button>
     </div>
   )
 }

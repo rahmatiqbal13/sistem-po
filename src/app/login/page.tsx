@@ -32,13 +32,13 @@ export default function LoginPage() {
       <div aria-hidden="true" className="absolute -left-[160px] -top-[160px] -z-10 size-[420px] rounded-full bg-accent-300 opacity-55" />
       <div aria-hidden="true" className="absolute -bottom-[110px] -right-[90px] -z-10 size-[300px] rounded-full bg-sage-300 opacity-70" />
       <div aria-hidden="true" className="absolute right-[18%] top-[14%] -z-10 size-[90px] rounded-full bg-sage-400 opacity-50" />
-      <form onSubmit={submit} className="relative flex w-full max-w-[420px] flex-col gap-4 rounded-card bg-surface px-6 py-8 shadow-md">
+      <form onSubmit={submit} className="relative flex w-full max-w-[420px] flex-col gap-4 rounded-card bg-surface p-8 shadow-md">
         <div className="flex items-center gap-2.5">
-          <div aria-hidden="true" className="grid size-[40px] place-items-center rounded-full bg-accent font-heading text-[19px] text-ink">P</div>
-          <div className="font-heading text-[22px]">PO Jajanan</div>
+          <div aria-hidden="true" className="grid size-[40px] place-items-center rounded-full bg-accent font-heading text-card text-ink">P</div>
+          <div className="font-heading text-section">PO Jajanan</div>
         </div>
         <div>
-          <h1 className="text-[36px] md:text-[36px]">Masuk</h1>
+          <h1>Masuk</h1>
           <p className="mb-0 mt-1 text-neutral-800">Masuk untuk mencatat pesanan.</p>
         </div>
         {error && <Alert>{error}</Alert>}
@@ -56,7 +56,7 @@ export default function LoginPage() {
             </button>
           </div>
         </Field>
-        <button type="submit" disabled={busy} className="btn btn-primary min-h-[52px] text-[17px]">{busy ? 'Masuk…' : 'Masuk'}</button>
+        <button type="submit" disabled={busy} className="btn btn-primary btn-lg">{busy ? 'Masuk…' : 'Masuk'}</button>
       </form>
     </main>
   )

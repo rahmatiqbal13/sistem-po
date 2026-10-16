@@ -8,11 +8,11 @@ import type { CaraTerima, OrderStatus, OrderSummary } from '@/lib/types'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
 import { fetchBatchItems, fetchBatchOrders, rekapProduksi, ringkasan, type ItemWithOrder } from '@/lib/data'
 import { exportOrders } from '@/lib/export'
-import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
+import { errMsg, jam, rupiah, rupiahSingkat, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
 import {
-  Alert, BayarBadge, Button, Chip, Empty, ICON, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, Pager, cx, paginate,
+  Alert, BayarBadge, Button, CARD, CARD_GRID, Chip, INACTIVE, Empty, ICON, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, Pager, cx, paginate,
 } from '@/components/ui'
 
 type BayarFilter = '' | 'belum' | 'dp' | 'lunas' | 'belum_lunas'
@@ -142,10 +142,10 @@ export default function PesananPage() {
   }
 
   const cards = [
-    { label: 'Total pesanan', value: rupiah(sum.total), sub: `${sum.jumlah} pesanan aktif`, onClick: reset, active: !hasFilter, tone: '' },
-    { label: 'Terbayar', value: rupiah(sum.terbayar), sub: `${sum.lunas} lunas`, onClick: onlyBayar('lunas'), active: bayar === 'lunas', tone: 'text-sage-700' },
-    { label: 'Belum terbayar', value: rupiah(sum.sisa), sub: `${sum.dp} DP · ${sum.belum} belum bayar`, onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: sum.sisa > 0 ? 'text-accent-700' : '' },
-    { label: 'Belum bayar sama sekali', value: String(sum.belum), sub: `${sum.dp + sum.belum} pesanan belum lunas`, onClick: onlyBayar('belum'), active: bayar === 'belum', tone: sum.belum > 0 ? 'text-accent-700' : '' },
+    { label: 'Total pesanan', value: rupiah(sum.total), short: rupiahSingkat(sum.total), sub: `${sum.jumlah} pesanan aktif`, onClick: reset, active: !hasFilter, tone: '' },
+    { label: 'Terbayar', value: rupiah(sum.terbayar), short: rupiahSingkat(sum.terbayar), sub: `${sum.lunas} lunas`, onClick: onlyBayar('lunas'), active: bayar === 'lunas', tone: 'text-sage-700' },
+    { label: 'Belum terbayar', value: rupiah(sum.sisa), short: rupiahSingkat(sum.sisa), sub: `${sum.dp} DP · ${sum.belum} belum bayar`, onClick: onlyBayar('belum_lunas'), active: bayar === 'belum_lunas', tone: sum.sisa > 0 ? 'text-accent-700' : '' },
+    { label: 'Belum bayar sama sekali', value: String(sum.belum), short: String(sum.belum), sub: `${sum.dp + sum.belum} pesanan belum lunas`, onClick: onlyBayar('belum'), active: bayar === 'belum', tone: sum.belum > 0 ? 'text-accent-700' : '' },
   ]
 
   return (
@@ -156,13 +156,16 @@ export default function PesananPage() {
       {error && <Alert>{error}</Alert>}
 
       {/* Kartu ringkasan: klik untuk memfilter daftar */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 md:grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:gap-4">
         {cards.map((c) => (
           <button key={c.label} type="button" onClick={c.onClick} aria-pressed={c.active}
-            className={cx('flex flex-col gap-0.5 rounded-card border-2 p-4 text-left md:pl-6',
+            className={cx('flex flex-col gap-1 border-2 text-left', CARD.list,
               c.active ? 'border-accent bg-accent-100' : 'border-transparent bg-surface hover:bg-accent-100')}>
             <span className="text-sm font-semibold text-neutral-800">{c.label}</span>
-            <span className={cx('whitespace-nowrap text-[clamp(14px,4.4vw,20px)] font-bold leading-tight md:text-[26px]', c.tone)}>{c.value}</span>
+            {/* HP: angka ringkas agar tetap besar di kartu 2 kolom; nilai lengkap di desktop */}
+            <span className={cx('whitespace-nowrap text-section font-bold md:text-stat', c.tone)} title={c.value}>
+              <span className="md:hidden">{c.short}</span><span className="hidden md:inline">{c.value}</span>
+            </span>
             <span className="text-sm text-neutral-800">{c.sub}</span>
           </button>
         ))}
@@ -171,7 +174,7 @@ export default function PesananPage() {
       {linkBaru > 0 && status !== 'baru' && (
         <button type="button" onClick={() => { setQInput(''); setParams({ q: null, bayar: null, status: 'baru', cara: null }) }}
           className="flex items-center gap-3 rounded-full bg-accent-200 py-3 pl-3 pr-6 text-left text-base font-bold text-accent-900 hover:bg-accent-300">
-          <span className="grid size-[40px] shrink-0 place-items-center rounded-full bg-accent-700 text-[17px] text-accent-100">{linkBaru}</span>
+          <span className="grid size-[40px] shrink-0 place-items-center rounded-full bg-accent-700 text-card text-accent-100">{linkBaru}</span>
           <span className="flex-1">pesanan baru dari link menunggu dikonfirmasi</span>
           <span aria-hidden="true">→</span>
         </button>
@@ -179,9 +182,9 @@ export default function PesananPage() {
 
       {/* Rekap produksi singkat */}
       {rekap.length > 0 && (
-        <section className="flex flex-col gap-3 rounded-card bg-sage-200 px-6 py-4">
+        <section className={cx('flex flex-col gap-3 bg-sage-200', CARD.panel)}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-xl text-sage-900">Rekap produksi</h2>
+            <h2 className="text-section text-sage-900">Rekap produksi</h2>
             <Link href="/rekap" className="btn btn-ghost text-sage-800 hover:text-sage-800">Lihat rekap lengkap →</Link>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -239,15 +242,15 @@ export default function PesananPage() {
       ) : (
         <>
           {/* HP: kartu */}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 md:hidden">
+          <div className={cx(CARD_GRID, 'md:hidden')}>
             {pg.shown.map((o) => {
               const batal = o.status === 'dibatalkan'
               return (
                 <Link key={o.id} href={`/pesanan/${o.id}`} onClick={rememberList}
-                  className={cx('flex flex-col gap-3 rounded-card py-4 pl-6 pr-4 text-ink no-underline transition-[background-color,scale] hover:bg-accent-100 hover:text-ink active:scale-[0.98] active:bg-accent-100', batal ? 'bg-neutral-200' : 'bg-surface')}>
+                  className={cx('flex flex-col gap-3 bg-surface text-ink no-underline transition-[background-color,scale] hover:bg-accent-100 hover:text-ink active:scale-[0.98] active:bg-accent-100', CARD.list, batal && INACTIVE)}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-[19px] font-bold leading-tight">{o.customer_nama}</div>
+                      <div className="text-card font-bold leading-tight">{o.customer_nama}</div>
                       <div className="my-1"><OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} /></div>
                       <div className="text-sm text-neutral-800">
                         {CARA_TERIMA[o.cara_terima]} · {tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}
@@ -317,7 +320,7 @@ export default function PesananPage() {
 
       {orders && orders.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[15px] text-neutral-800">{filtered.length ? `${pg.info} pesanan` : '0 pesanan'}</div>
+          <div className="text-label text-neutral-800">{filtered.length ? `${pg.info} pesanan` : '0 pesanan'}</div>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" className="min-h-[44px]" onClick={() => exportOrders(filtered, items, `pesanan-${batch.nama}`, 'xlsx')}>
               <Download size={18} {...ICON} />Ekspor Excel ({filtered.length})

@@ -103,14 +103,14 @@ export default function RekapPage() {
             {/* Rekap produksi */}
             <section className="flex min-w-0 flex-[3_1_420px] flex-col gap-4 rounded-card bg-surface p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-[25px]">Rekap produksi</h2>
-                <span className="text-sm text-neutral-800">Total <b className="text-[22px] text-ink">{totalQty}</b> pcs</span>
+                <h2 className="text-section">Rekap produksi</h2>
+                <span className="text-sm text-neutral-800">Total <b className="text-section text-ink">{totalQty}</b> pcs</span>
               </div>
               {rekap.length === 0 ? <p className="m-0 text-neutral-800">Belum ada item.</p> : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-3 gap-y-4">
                   {rekap.map((r, i) => (
                     <div key={r.nama} className="flex items-center gap-3">
-                      <span className={cx('grid size-[62px] shrink-0 place-items-center rounded-full text-[22px] font-bold',
+                      <span className={cx('grid size-[62px] shrink-0 place-items-center rounded-full text-section font-bold',
                         i % 2 ? 'bg-sage-300 text-sage-900' : 'bg-accent-300 text-accent-900')}>{r.qty}</span>
                       <span className="font-semibold leading-snug">{r.nama}</span>
                     </div>
@@ -130,17 +130,17 @@ export default function RekapPage() {
 
             {/* Ringkasan keuangan */}
             <section className="flex min-w-0 flex-[2_1_300px] flex-col gap-4 rounded-card bg-sage-700 p-6 text-sage-100">
-              <h2 className="text-[25px]">Ringkasan keuangan</h2>
+              <h2 className="text-section">Ringkasan keuangan</h2>
               <dl className="m-0 flex flex-col gap-2">
-                <div className="flex items-baseline justify-between gap-2"><dt>Total pesanan ({sum.jumlah})</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.total)}</dd></div>
-                <div className="flex items-baseline justify-between gap-2"><dt>Total terbayar</dt><dd className="m-0 text-[22px] font-bold">{rupiah(sum.terbayar)}</dd></div>
-                <div className="flex items-baseline justify-between gap-2"><dt>Belum terbayar</dt><dd className="m-0 text-[22px] font-bold text-accent-300">{rupiah(sum.sisa)}</dd></div>
-                <div className="flex items-baseline justify-between gap-2 border-t border-sage-600 pt-2"><dt>Laba kotor{laba.total.tanpaHpp > 0 && '*'}</dt><dd className="m-0 text-[22px] font-bold">{rupiah(laba.total.laba)}</dd></div>
+                <div className="flex items-baseline justify-between gap-2"><dt>Total pesanan ({sum.jumlah})</dt><dd className="m-0 text-section font-bold">{rupiah(sum.total)}</dd></div>
+                <div className="flex items-baseline justify-between gap-2"><dt>Total terbayar</dt><dd className="m-0 text-section font-bold">{rupiah(sum.terbayar)}</dd></div>
+                <div className="flex items-baseline justify-between gap-2"><dt>Belum terbayar</dt><dd className="m-0 text-section font-bold text-accent-300">{rupiah(sum.sisa)}</dd></div>
+                <div className="flex items-baseline justify-between gap-2 border-t border-sage-600 pt-2"><dt>Laba kotor{laba.total.tanpaHpp > 0 && '*'}</dt><dd className="m-0 text-section font-bold">{rupiah(laba.total.laba)}</dd></div>
               </dl>
               <div className="mt-auto grid grid-cols-3 gap-2">
                 {([['Lunas', sum.lunas], ['DP', sum.dp], ['Belum bayar', sum.belum]] as const).map(([l, n]) => (
                   <div key={l} className="rounded-lg bg-sage-800 p-3 text-center">
-                    <div className="text-[28px] font-bold leading-tight">{n}</div>
+                    <div className="text-stat font-bold leading-tight">{n}</div>
                     <div className="text-sm">{l}</div>
                   </div>
                 ))}
@@ -164,11 +164,11 @@ export default function RekapPage() {
             </div>
             {list.length === 0 ? <Empty title="Tidak ada pesanan" /> : groups.map((g) => (
               <div key={g.tanggal} className="flex flex-col gap-3">
-                <h3 className="mt-2 text-xl">{g.tanggal ? tanggal(g.tanggal, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Tanpa tanggal'}</h3>
+                <h3 className="mt-2">{g.tanggal ? tanggal(g.tanggal, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Tanpa tanggal'}</h3>
                 {g.cara.map((c) => (
-                  <div key={c.cara} className="rounded-card bg-surface px-6 pb-2 pt-3">
+                  <div key={c.cara} className="rounded-tile bg-surface px-5 pb-2 pt-3">
                     <div className="flex items-center gap-2 pb-2 pt-1 font-bold">
-                      {CARA_TERIMA[c.cara]} <span className="tag bg-sage-100 text-[13px] font-normal text-sage-800">{c.orders.length}</span>
+                      {CARA_TERIMA[c.cara]} <span className="tag bg-sage-100 text-caption font-normal text-sage-800">{c.orders.length}</span>
                     </div>
                     {c.orders.map((o) => {
                       const done = o.status === 'selesai'
@@ -179,7 +179,7 @@ export default function RekapPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               {o.jam_ambil && <span className="font-bold text-accent-700">{jam(o.jam_ambil)}</span>}
                               <Link href={`/pesanan/${o.id}`} className="font-bold text-ink no-underline hover:underline">{o.customer_nama}</Link>
-                              <OrderStatusBadge status={o.status} className="bg-neutral-200 text-[13px]" />
+                              <OrderStatusBadge status={o.status} className="bg-neutral-200 text-caption" />
                             </div>
                             <div className="text-sm">{itemsByOrder.get(o.id)}</div>
                             <div className="text-sm text-neutral-800">{[o.alamat, o.customer_wa].filter(Boolean).join(' · ')}</div>
@@ -231,9 +231,9 @@ function LabaSection({ laba, onExport }: { laba: ReturnType<typeof rekapLaba>; o
   return (
     <section className="flex flex-col gap-4 rounded-card bg-surface p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-[25px]">Laba kotor</h2>
+        <h2 className="text-section">Laba kotor</h2>
         <span className="text-sm text-neutral-800">
-          <b className="text-[22px] text-ink">{rupiah(t.laba)}</b> · margin {t.margin}%
+          <b className="text-section text-ink">{rupiah(t.laba)}</b> · margin {t.margin}%
         </span>
       </div>
 
@@ -241,7 +241,7 @@ function LabaSection({ laba, onExport }: { laba: ReturnType<typeof rekapLaba>; o
         {([['Pendapatan produk', t.pendapatan], ['Total HPP', t.hpp], ['Laba kotor', t.laba]] as const).map(([l, n]) => (
           <div key={l} className="rounded-lg bg-bg p-3">
             <div className="text-sm text-neutral-800">{l}</div>
-            <div className={cx('text-[20px] font-bold', n < 0 && 'text-accent-800')}>{rupiah(n)}</div>
+            <div className={cx('text-section font-bold', n < 0 && 'text-accent-800')}>{rupiah(n)}</div>
           </div>
         ))}
       </div>

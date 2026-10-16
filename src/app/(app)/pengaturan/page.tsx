@@ -58,10 +58,10 @@ export default function PengaturanPage() {
         <Field label="Info pembayaran" htmlFor="st-info" helper="Contoh: BCA 1234567890 a.n. Iqbal · DANA 0812…">
           <textarea id="st-info" rows={3} value={form.info_pembayaran ?? ''} onChange={set('info_pembayaran')} className={inputCls} />
         </Field>
-        <div><Button type="submit" disabled={busy} className="min-h-[46px] px-6">{busy ? 'Menyimpan…' : 'Simpan pengaturan'}</Button></div>
+        <div><Button type="submit" disabled={busy} className="btn-lg">{busy ? 'Menyimpan…' : 'Simpan pengaturan'}</Button></div>
       </form>
       {/* Di HP tidak ada sidebar, jadi tombol keluar diletakkan di sini */}
-      <div className="md:hidden"><Button variant="secondary" className="min-h-[46px] px-6" onClick={logout}>Keluar</Button></div>
+      <div className="md:hidden"><Button variant="secondary" className="px-6" onClick={logout}>Keluar</Button></div>
     </>
   )
 }
