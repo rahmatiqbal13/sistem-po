@@ -33,6 +33,7 @@ export default function ResetPasswordPage() {
         setUndangan(h.get('type') === 'invite')
         window.history.replaceState(null, '', window.location.pathname)
       }
+      if (new URLSearchParams(window.location.search).get('undangan') === '1') setUndangan(true)
       const { data } = await supabase.auth.getUser()
       setEmail(data.user?.email ?? null)
     })()
