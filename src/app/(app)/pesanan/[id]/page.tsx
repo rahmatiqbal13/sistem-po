@@ -14,6 +14,7 @@ import { normWa } from '@/lib/foto'
 import { fetchToko, useToko } from '@/lib/toko'
 import { LABEL_PESAN, buatPesan, pesanBawaan, pilihanPesan, type DataPesan, type JenisPesan } from '@/lib/pesan-wa'
 import { buatStrukPdf, unduh } from '@/lib/struk'
+import { teksLog, type LogPesanan } from '@/lib/log'
 import { useBatch } from '@/components/batch-context'
 import { Alert, BayarBadge, Button, Field, ICON, Loading, Modal, OrderStatusBadge, OrderTags, Toast, cx, inputCls, kodePesanan, useConfirm } from '@/components/ui'
 
@@ -248,6 +249,8 @@ export default function PesananDetailPage() {
               Dicatat oleh {order.created_by ?? '—'} · diubah terakhir oleh {order.updated_by ?? '—'}, {new Date(order.updated_at).toLocaleString('id-ID')}
             </p>
           </section>
+
+          <Riwayat orderId={order.id} versi={`${order.updated_at}|${payments.map((p) => p.id).join()}`} />
         </div>
 
         <div className="flex min-w-0 max-w-[400px] flex-[1_1_320px] flex-col gap-4">
@@ -346,6 +349,53 @@ export default function PesananDetailPage() {
           onDone={() => { setRemoved(null); flushRemovedFile() }} />
       )}
     </div>
+  )
+}
+
+const RIWAYAT_AWAL = 5
+
+/** Log aktivitas pesanan: siapa mencatat, mengubah, dan menerima pembayaran */
+function Riwayat({ orderId, versi }: { orderId: string; versi: string }) {
+  const [log, setLog] = useState<LogPesanan[] | null>(null)
+  const [semua, setSemua] = useState(false)
+
+  // Dimuat ulang setiap kali pesanan atau pembayarannya berubah (versi berganti)
+  useEffect(() => {
+    createClient().from('order_log').select('*').eq('order_id', orderId)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .then(({ data, error }) => setLog(error ? null : (data ?? []) as LogPesanan[]))
+  }, [orderId, versi])
+
+  // Tabel log belum ada (migrasi belum dijalankan): bagian ini tidak ditampilkan
+  if (!log) return null
+  const tampil = semua ? log : log.slice(0, RIWAYAT_AWAL)
+  return (
+    <section className={PANEL}>
+      <h2 className="mb-3 text-section">Riwayat</h2>
+      {log.length === 0 ? (
+        <p className="m-0 text-sm text-neutral-800">Belum ada catatan. Riwayat tercatat sejak fitur ini diaktifkan.</p>
+      ) : (
+        <ol className="m-0 flex list-none flex-col p-0">
+          {tampil.map((l) => {
+            const t = teksLog(l)
+            return (
+              <li key={l.id} className="flex flex-col gap-0.5 border-b border-divider py-2.5 last:border-0">
+                <span className="font-semibold">{t.judul}</span>
+                {t.rincian && <span className="text-sm">{t.rincian}</span>}
+                <span className="text-sm text-neutral-800">
+                  {new Date(l.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {l.oleh ?? '—'}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {log.length > RIWAYAT_AWAL && (
+        <Button variant="ghost" className="mt-2 px-0" onClick={() => setSemua((v) => !v)}>
+          {semua ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${log.length})`}
+        </Button>
+      )}
+    </section>
   )
 }
 

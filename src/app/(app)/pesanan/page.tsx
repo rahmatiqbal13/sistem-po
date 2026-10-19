@@ -3,18 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Download, Search, X } from 'lucide-react'
+import { BellRing, Download, MessageCircle, Search, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { fotoUrl } from '@/lib/foto'
+import { fotoUrl, normWa } from '@/lib/foto'
 import type { Batch, CaraTerima, OrderStatus, OrderSummary, Product, Quota } from '@/lib/types'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
 import { fetchBatchItems, fetchBatchOrders, rekapProduksi, ringkasan, type ItemWithOrder } from '@/lib/data'
 import { exportOrders } from '@/lib/export'
 import { errMsg, jam, rupiah, rupiahSingkat, tanggal, today } from '@/lib/format'
+import { pengingatTagih } from '@/lib/pengingat'
+import { PESANAN_BARU_EVENT } from '@/lib/notifikasi'
+import { buatPesan } from '@/lib/pesan-wa'
+import { useToko } from '@/lib/toko'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
 import {
-  Alert, BayarBadge, Button, CARD, CARD_GRID, Chip, INACTIVE, Empty, ICON, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, Pager, cx, paginate,
+  Alert, BayarBadge, Button, CARD, CARD_GRID, Chip, INACTIVE, Empty, ICON, LinkButton, Loading, OrderStatusBadge, OrderTags, PageHeader, Pager, cx, kodePesanan, paginate,
 } from '@/components/ui'
 
 type BayarFilter = '' | 'belum' | 'dp' | 'lunas' | 'belum_lunas'
@@ -84,6 +88,11 @@ export default function PesananPage() {
   }, [batchId])
 
   useEffect(() => { load() }, [load])
+  // Pesanan baru dari link masuk saat halaman terbuka: muat ulang daftar
+  useEffect(() => {
+    window.addEventListener(PESANAN_BARU_EVENT, load)
+    return () => window.removeEventListener(PESANAN_BARU_EVENT, load)
+  }, [load])
 
   // Foto produk untuk kolase terlaris
   const [foto, setFoto] = useState<Foto[]>([])
@@ -126,6 +135,21 @@ export default function PesananPage() {
     return new Set([...count].filter(([, n]) => n > 1).map(([id]) => id))
   }, [orders])
   const linkBaru = (orders ?? []).filter((o) => o.sumber === 'link' && o.status === 'baru').length
+
+  // Pengingat tagihan: belum lunas & jadwal ambil besok, hari ini, atau sudah lewat
+  const toko = useToko()
+  const hariIni = today()
+  const tagih = (o: OrderSummary) =>
+    pengingatTagih({ status: o.status, sisa: Number(o.sisa), tanggalAmbil: o.tanggal_ambil }, hariIni, batch?.tanggal_ambil ?? null)
+  const ingatkan = (o: OrderSummary) => {
+    const teks = buatPesan('tagihan', {
+      nama: o.customer_nama, kode: kodePesanan(o.id), toko: toko.nama_toko, infoPembayaran: toko.info_pembayaran, lokasi: toko.lokasi_ambil,
+      status: o.status, caraTerima: o.cara_terima, tanggalAmbil: o.tanggal_ambil, jamAmbil: o.jam_ambil,
+      items: items.filter((i) => i.order_id === o.id).map((i) => ({ nama: i.nama_produk_snapshot, qty: i.qty, harga: Number(i.harga_snapshot) })),
+      ongkir: Number(o.ongkir), total: Number(o.total), terbayar: Number(o.terbayar), sisa: Number(o.sisa),
+    }, toko.template_wa)
+    window.open(`https://wa.me/${normWa(o.customer_wa)}?text=${encodeURIComponent(teks)}`, '_blank', 'noopener')
+  }
 
   const pg = paginate(filtered, hal, per)
 
@@ -274,9 +298,11 @@ export default function PesananPage() {
           <div className={cx(CARD_GRID, 'md:hidden')}>
             {pg.shown.map((o) => {
               const batal = o.status === 'dibatalkan'
+              const ingat = tagih(o)
               return (
-                <Link key={o.id} href={`/pesanan/${o.id}`} onClick={rememberList}
-                  className={cx('flex flex-col gap-3 bg-surface text-ink no-underline transition-[background-color,scale] hover:bg-accent-100 hover:text-ink active:scale-[0.98] active:bg-accent-100', CARD.list, batal && INACTIVE)}>
+                <div key={o.id} className="flex flex-col">
+                <Link href={`/pesanan/${o.id}`} onClick={rememberList}
+                  className={cx('flex flex-col gap-3 bg-surface text-ink no-underline transition-[background-color,scale] hover:bg-accent-100 hover:text-ink active:scale-[0.98] active:bg-accent-100', CARD.list, batal && INACTIVE, ingat && 'rounded-b-none')}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-card font-bold leading-tight">{o.customer_nama}</div>
@@ -295,6 +321,8 @@ export default function PesananPage() {
                     </div>
                   </div>
                 </Link>
+                {ingat && <Pengingat teks={ingat} onIngatkan={o.customer_wa ? () => ingatkan(o) : undefined} />}
+                </div>
               )
             })}
           </div>
@@ -327,6 +355,22 @@ export default function PesananPage() {
                           <OrderTags sumber={o.sumber} ganda={ganda.has(o.customer_id)} />
                         </div>
                         <div className="whitespace-nowrap text-sm text-neutral-800">{o.customer_wa}</div>
+                        {(() => {
+                          const ingat = tagih(o)
+                          if (!ingat) return null
+                          return (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <span className="tag bg-accent-200 text-caption font-bold text-accent-900"><BellRing size={14} {...ICON} />{ingat}</span>
+                              {o.customer_wa && (
+                                <button type="button" onClick={(e) => { e.stopPropagation(); ingatkan(o) }}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  className="btn btn-ghost min-h-[36px] px-2 text-caption">
+                                  <MessageCircle size={14} {...ICON} />Ingatkan via WA
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="whitespace-nowrap">{tanggal(o.tanggal_ambil, { day: 'numeric', month: 'short' })} {jam(o.jam_ambil)}</td>
                       <td className="whitespace-nowrap">{CARA_TERIMA[o.cara_terima]}</td>
@@ -363,6 +407,20 @@ export default function PesananPage() {
         jumlah={sum.jumlah} onHide={togglePanel} />}
       </div>
     </>
+  )
+}
+
+/** Pita pengingat di bawah kartu pesanan (HP) */
+function Pengingat({ teks, onIngatkan }: { teks: string; onIngatkan?: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-tile bg-accent-200 py-1.5 pl-5 pr-2 text-accent-900">
+      <span className="flex items-center gap-1.5 text-sm font-bold"><BellRing size={16} {...ICON} />{teks}</span>
+      {onIngatkan
+        ? <button type="button" onClick={onIngatkan} className="btn btn-ghost min-h-[44px] px-3 text-accent-900 hover:text-accent-900">
+            <MessageCircle size={16} {...ICON} />Ingatkan via WA
+          </button>
+        : <span className="py-2.5 pr-3 text-sm">Tanpa nomor WA</span>}
+    </div>
   )
 }
 

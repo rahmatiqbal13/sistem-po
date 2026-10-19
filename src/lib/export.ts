@@ -22,6 +22,18 @@ async function download(rows: Row[], filename: string, format: 'xlsx' | 'csv', s
   XLSX.writeFile(wb, filename + '.xlsx')
 }
 
+/** Satu file Excel berisi beberapa sheet; nilai objek (JSON) ditulis sebagai teks */
+export async function downloadSheets(sheets: { nama: string; rows: Record<string, unknown>[] }[], filename: string) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  for (const s of sheets) {
+    const rows = s.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) =>
+      [k, v !== null && typeof v === 'object' ? JSON.stringify(v) : v ?? ''])))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ '(kosong)': '' }]), s.nama.slice(0, 31))
+  }
+  XLSX.writeFile(wb, filename + '.xlsx')
+}
+
 export function exportOrders(orders: OrderSummary[], items: ItemWithOrder[], filename: string, format: 'xlsx' | 'csv') {
   const byOrder = new Map<string, string[]>()
   for (const i of items) {

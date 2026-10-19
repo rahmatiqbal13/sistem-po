@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Pengaturan } from '@/lib/types'
 import { pasangTema } from '@/lib/tema'
 
-export const TOKO_DEFAULT: Pengaturan = { nama_toko: 'PO Jajanan', wa_admin: null, info_pembayaran: null, logo_path: null, sampul_path: null, tema: null, gaya: null, template_wa: null,
+export const TOKO_DEFAULT: Pengaturan = { nama_toko: 'PO Jajanan', wa_admin: null, info_pembayaran: null, logo_path: null, sampul_path: null, tema: null, gaya: null, template_wa: null, cadangan_terakhir: null,
   jam_buka: null, jam_tutup: null, hari_buka: null, lokasi_ambil: null, area_antar: null,
 }
 /** Dikirim setelah pengaturan disimpan agar sidebar ikut memperbarui nama & logo */

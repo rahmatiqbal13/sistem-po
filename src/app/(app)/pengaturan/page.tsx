@@ -14,6 +14,8 @@ import { GAYA, GAYA_DEFAULT, TEMA, TEMA_DEFAULT, pasangTema } from '@/lib/tema'
 import { useBatch } from '@/components/batch-context'
 import { AturGambar } from '@/components/atur-gambar'
 import { KelolaAdmin } from '@/components/kelola-admin'
+import { SetelanNotifikasi } from '@/components/setelan-notifikasi'
+import { CadanganData } from '@/components/cadangan-data'
 import { Alert, Button, Field, ICON, Loading, PageHeader, ProductPhoto, cx, inputCls } from '@/components/ui'
 
 const CARD = 'flex flex-col gap-4 rounded-card bg-surface p-6'
@@ -49,7 +51,9 @@ export default function PengaturanPage() {
           <JamOperasional awal={toko} onChange={patch} />
           <TemplateWa toko={toko} onChange={(template_wa) => patch({ template_wa })} />
           <Tampilan tema={toko.tema} gaya={toko.gaya} onChange={(tema, gaya) => patch({ tema, gaya })} />
+          <SetelanNotifikasi />
           <KelolaAdmin />
+          <CadanganData terakhir={toko.cadangan_terakhir} onSelesai={(cadangan_terakhir) => patch({ cadangan_terakhir })} />
         </div>
         <Pratinjau toko={toko} onChange={patch} />
       </div>

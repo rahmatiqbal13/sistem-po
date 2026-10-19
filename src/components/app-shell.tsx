@@ -2,15 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { sisaSesi } from '@/lib/session'
 import { useToko } from '@/lib/toko'
 import { fotoUrl } from '@/lib/foto'
+import { PESANAN_BARU_EVENT, daftarServiceWorker, tampilkanNotifikasi } from '@/lib/notifikasi'
 import { BATCH_STATUS } from '@/lib/types'
 import { BatchProvider, useBatch } from './batch-context'
-import { ICON, cx } from './ui'
+import { ICON, Toast, cx } from './ui'
 
 const NAV = [
   { href: '/pesanan', label: 'Pesanan', Icon: ClipboardList },
@@ -23,6 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <BatchProvider>
       <Shell>{children}</Shell>
+      <PesananBaru />
     </BatchProvider>
   )
 }
@@ -159,6 +161,41 @@ function Shell({ children }: { children: ReactNode }) {
       )}
     </div>
   )
+}
+
+/**
+ * Kabar pesanan baru dari link pembeli (Supabase Realtime): toast saat aplikasi sedang dilihat,
+ * notifikasi perangkat saat aplikasi di latar belakang (bila izin sudah diberikan di Pengaturan).
+ */
+function PesananBaru() {
+  const router = useRouter()
+  const { reload } = useBatch()
+  const [toast, setToast] = useState<{ id: string; pesan: string } | null>(null)
+
+  useEffect(() => {
+    daftarServiceWorker()
+    const supabase = createClient()
+    const ch = supabase.channel('pesanan-baru')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: 'sumber=eq.link' }, async (payload) => {
+        const o = payload.new as { id: string; customer_id: string; batch_id: string }
+        const [{ data: c }, { data: b }] = await Promise.all([
+          supabase.from('customers').select('nama').eq('id', o.customer_id).maybeSingle(),
+          supabase.from('po_batches').select('nama').eq('id', o.batch_id).maybeSingle(),
+        ])
+        const nama = (c as { nama: string } | null)?.nama ?? 'Pembeli'
+        const pesan = `Pesanan baru dari ${nama}`
+        window.dispatchEvent(new CustomEvent(PESANAN_BARU_EVENT, { detail: o }))
+        reload()
+        if (document.visibilityState === 'visible') setToast({ id: o.id, pesan })
+        else tampilkanNotifikasi(pesan, `Lewat link pemesanan${b ? ` · ${(b as { nama: string }).nama}` : ''}`, `/pesanan/${o.id}`)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [reload])
+
+  if (!toast) return null
+  return <Toast key={toast.id} message={toast.pesan} actionLabel="Lihat" duration={10000}
+    onAction={() => { setToast(null); router.push(`/pesanan/${toast.id}`) }} onDone={() => setToast(null)} />
 }
 
 /** Pemilih batch aktif, dipakai di halaman Pesanan & Rekap. */

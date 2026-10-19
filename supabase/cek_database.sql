@@ -35,7 +35,13 @@ with perlu(jenis, nama, file) as (values
   ('indeks', 'customers_norm_wa_idx', 'migrations/20261016_2_fungsi_atomik.sql'),
   ('indeks', 'order_items_product_idx', 'migrations/20261016_2_fungsi_atomik.sql'),
   -- migrasi 3
-  ('fungsi', 'get_info_toko', 'migrations/20261016_3_info_toko_publik.sql')
+  ('fungsi', 'get_info_toko', 'migrations/20261016_3_info_toko_publik.sql'),
+  -- migrasi 2026-10-18
+  ('tabel', 'order_log', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
+  ('fungsi', 'log_pesanan', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
+  ('fungsi', 'log_pembayaran', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
+  ('realtime', 'orders', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
+  ('kolom', 'pengaturan.cadangan_terakhir', 'migrations/20261018_1_log_notifikasi_cadangan.sql')
 )
 select p.jenis, p.nama,
   case when (case p.jenis
@@ -45,6 +51,9 @@ select p.jenis, p.nama,
     when 'fungsi' then exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace where n.nspname = 'public' and f.proname = p.nama)
     when 'indeks' then exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = p.nama)
     when 'bucket' then exists (select 1 from storage.buckets b where b.id = p.nama)
+    when 'tabel' then exists (select 1 from information_schema.tables t where t.table_schema = 'public' and t.table_name = p.nama)
+    when 'realtime' then exists (select 1 from pg_publication_tables r where r.pubname = 'supabase_realtime'
+                                 and r.schemaname = 'public' and r.tablename = p.nama)
   end) then 'OK' else 'KURANG' end as status,
   p.file as jalankan_file
 from perlu p

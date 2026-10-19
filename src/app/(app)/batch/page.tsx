@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, Share2, Trash2 } from 'lucide-react'
+import { Copy, CopyPlus, ExternalLink, Share2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Batch, BatchStatus, Product, Quota } from '@/lib/types'
 import { BATCH_STATUS } from '@/lib/types'
@@ -31,6 +31,8 @@ export default function BatchPage() {
   const router = useRouter()
   const { batches, batchId, setBatchId, reload, loading } = useBatch()
   const [editing, setEditing] = useState<Partial<Batch> | null>(null)
+  // Batch sumber saat duplikasi: menu & kuotanya dipakai sebagai isian awal batch baru
+  const [dariId, setDariId] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [copyFail, setCopyFail] = useState<string | null>(null)
   const [kuota, setKuota] = useState<Record<string, KuotaRow[]>>({})
@@ -112,6 +114,14 @@ export default function BatchPage() {
     } catch { setCopyFail(b.id) }
   }
 
+  // Pesanan & tanggal tidak disalin; batch baru mulai Draft agar link belum menerima pesanan
+  function duplikasi(b: Batch) {
+    setDariId(b.id)
+    setEditing({ nama: `${b.nama} (salinan)`, status: 'draft', info_pembeli: b.info_pembeli })
+  }
+
+  function tutupForm() { setEditing(null); setDariId(null) }
+
   function shareWa(b: Batch) {
     const text = `Open PO ${b.nama}!${b.tanggal_tutup ? `\nDitutup ${tanggal(b.tanggal_tutup, { weekday: 'long', day: 'numeric', month: 'long' })}.` : ''}\nPesan di sini: ${linkPemesanan(b.slug)}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
@@ -192,6 +202,9 @@ export default function BatchPage() {
                   <Button className="min-h-[44px] flex-1 px-5" onClick={() => { setBatchId(b.id); router.push('/pesanan') }}>Lihat pesanan</Button>
                   <Button variant="ghost" className="min-h-[44px]" onClick={() => setEditing(b)}>Edit</Button>
                   {next && <Button variant="ghost" className="min-h-[44px]" onClick={() => advance(b)}>{next.label}</Button>}
+                  <Button variant="ghost" className="min-h-[44px]" onClick={() => duplikasi(b)}>
+                    <CopyPlus size={16} {...ICON} />Duplikasi
+                  </Button>
                 </div>
               </div>
             )
@@ -200,9 +213,9 @@ export default function BatchPage() {
       )}
 
       {editing && (
-        <BatchForm batch={editing} onClose={() => setEditing(null)}
-          onSaved={async (id) => { setEditing(null); await reload(); setBatchId(id); loadKuota() }}
-          onDelete={() => { const b = editing as Batch; setEditing(null); hapus(b) }} />
+        <BatchForm batch={editing} dariId={dariId} onClose={tutupForm}
+          onSaved={async (id) => { tutupForm(); await reload(); setBatchId(id); loadKuota() }}
+          onDelete={() => { const b = editing as Batch; tutupForm(); hapus(b) }} />
       )}
       {confirmDialog}
     </>
@@ -211,8 +224,8 @@ export default function BatchPage() {
 
 interface MenuRow { dijual: boolean; kuota: string }
 
-function BatchForm({ batch, onClose, onSaved, onDelete }: {
-  batch: Partial<Batch>; onClose: () => void; onSaved: (id: string) => void; onDelete: () => void
+function BatchForm({ batch, dariId, onClose, onSaved, onDelete }: {
+  batch: Partial<Batch>; dariId: string | null; onClose: () => void; onSaved: (id: string) => void; onDelete: () => void
 }) {
   const [form, setForm] = useState({
     nama: batch.nama ?? '',
@@ -233,8 +246,9 @@ function BatchForm({ batch, onClose, onSaved, onDelete }: {
       const { data: prods } = await supabase.from('products').select('*').eq('aktif', true).order('nama')
       const list = (prods ?? []) as Product[]
       setProducts(list)
-      if (batch.id) {
-        const { data } = await supabase.from('batch_product_quotas').select('*').eq('batch_id', batch.id)
+      const sumber = batch.id ?? dariId
+      if (sumber) {
+        const { data } = await supabase.from('batch_product_quotas').select('*').eq('batch_id', sumber)
         const rows = (data ?? []) as Quota[]
         setMenu(Object.fromEntries(list.map((p) => {
           const q = rows.find((r) => r.product_id === p.id)
@@ -245,7 +259,7 @@ function BatchForm({ batch, onClose, onSaved, onDelete }: {
         setMenu(Object.fromEntries(list.map((p) => [p.id, { dijual: true, kuota: '' }])))
       }
     })()
-  }, [batch.id])
+  }, [batch.id, dariId])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -283,9 +297,12 @@ function BatchForm({ batch, onClose, onSaved, onDelete }: {
   }
 
   return (
-    <Modal open onClose={onClose} title={batch.id ? 'Edit batch' : 'Buat batch'} width={580}>
+    <Modal open onClose={onClose} title={batch.id ? 'Edit batch' : dariId ? 'Duplikasi batch' : 'Buat batch'} width={580}>
       <form onSubmit={save} className="flex flex-col gap-4">
         {error && <Alert>{error}</Alert>}
+        {dariId && (
+          <Alert tone="muted">Menu, kuota, dan info pembeli disalin dari batch lama. Pesanan tidak ikut disalin. Isi tanggal dan sesuaikan kuota sebelum menyimpan.</Alert>
+        )}
         <Field label="Nama batch" htmlFor="bf-nama" helper="Contoh: PO Kebab Minggu ke-2 Oktober" required>
           <input id="bf-nama" autoFocus value={form.nama} onChange={set('nama')} className={inputCls} />
         </Field>

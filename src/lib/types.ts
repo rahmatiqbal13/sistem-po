@@ -28,6 +28,8 @@ export interface Pengaturan extends Operasional {
   tema: string | null; gaya: string | null
   /** Template pesan WhatsApp buatan toko; jenis yang kosong memakai pesan otomatis */
   template_wa: TemplatePesan | null
+  /** Waktu terakhir cadangan data diunduh; null = belum pernah */
+  cadangan_terakhir: string | null
 }
 
 export interface Order {

@@ -10,9 +10,32 @@ import { exportLaba, exportRekap } from '@/lib/export'
 import { errMsg, jam, rupiah, tanggal } from '@/lib/format'
 import { useBatch } from '@/components/batch-context'
 import { BatchPicker } from '@/components/app-shell'
+import { RekapBulanan } from '@/components/rekap-bulanan'
 import { Alert, BayarBadge, Button, Empty, ICON, Loading, OrderStatusBadge, PageHeader, Pager, cx, paginate, useConfirm } from '@/components/ui'
 
 const CARA_URUT: Record<CaraTerima, number> = { pickup: 0, antar: 1, kurir: 2 }
+
+type Lihat = 'batch' | 'bulanan'
+
+/** Pilihan tampilan rekap: per batch atau bulanan lintas batch (diingat di perangkat) */
+function useLihat() {
+  const [lihat, setLihat] = useState<Lihat>('batch')
+  useEffect(() => { try { if (localStorage.getItem('rekap.lihat') === 'bulanan') setLihat('bulanan') } catch {} }, [])
+  const ubah = (v: Lihat) => { setLihat(v); try { localStorage.setItem('rekap.lihat', v) } catch {} }
+  return [lihat, ubah] as const
+}
+
+function PilihLihat({ lihat, onChange }: { lihat: Lihat; onChange: (v: Lihat) => void }) {
+  return (
+    <div role="group" aria-label="Tampilan rekap" className="no-print inline-flex rounded-full bg-neutral-200 p-1">
+      {([['batch', 'Per batch'], ['bulanan', 'Bulanan']] as const).map(([v, l]) => (
+        <button key={v} type="button" aria-pressed={lihat === v} onClick={() => onChange(v)}
+          className={cx('min-h-[40px] rounded-full px-4 text-label font-bold',
+            lihat === v ? 'bg-surface text-ink shadow-sm' : 'text-neutral-800 hover:text-ink')}>{l}</button>
+      ))}
+    </div>
+  )
+}
 
 export default function RekapPage() {
   const { batch, batchId, loading } = useBatch()
@@ -23,6 +46,7 @@ export default function RekapPage() {
   const [per, setPer] = useState(10)
   const [pageState, setPageState] = useState({ key: '', n: 1 })
   const [confirm, confirmDialog] = useConfirm()
+  const [lihat, setLihat] = useLihat()
 
   const load = useCallback(async () => {
     if (!batchId) return
@@ -88,13 +112,21 @@ export default function RekapPage() {
     load()
   }
 
+  if (lihat === 'bulanan') {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Rekap" subtitle="Bulanan, gabungan semua batch." action={<PilihLihat lihat={lihat} onChange={setLihat} />} />
+        <RekapBulanan />
+      </div>
+    )
+  }
   if (loading) return <Loading />
-  if (!batch) return <><PageHeader title="Rekap" /><Empty title="Belum ada batch PO" /></>
+  if (!batch) return <><PageHeader title="Rekap" action={<PilihLihat lihat={lihat} onChange={setLihat} />} /><Empty title="Belum ada batch PO" /></>
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="Rekap" kicker={batch.nama} subtitle={<>Ambil/produksi {tanggal(batch.tanggal_ambil)}</>}
-        action={<div className="no-print w-full md:w-auto"><BatchPicker /></div>} />
+        action={<div className="no-print flex w-full flex-wrap items-center gap-2 md:w-auto"><PilihLihat lihat={lihat} onChange={setLihat} /><BatchPicker /></div>} />
       {error && <Alert>{error}</Alert>}
 
       {!orders ? <Loading /> : (

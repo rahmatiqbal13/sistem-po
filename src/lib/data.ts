@@ -2,6 +2,18 @@ import { createClient } from '@/lib/supabase/client'
 import type { OrderItem, OrderStatus, OrderSummary } from '@/lib/types'
 import { hitungLaba } from '@/lib/calc'
 
+/** Ambil semua baris tabel/view, melewati batas 1000 baris per permintaan Supabase */
+export async function fetchSemua<T>(tabel: string, urut: string): Promise<T[]> {
+  const supabase = createClient()
+  const out: T[] = []
+  for (let dari = 0; ; dari += 1000) {
+    const { data, error } = await supabase.from(tabel).select('*').order(urut).range(dari, dari + 999)
+    if (error) throw error
+    out.push(...((data ?? []) as T[]))
+    if (!data || data.length < 1000) return out
+  }
+}
+
 export async function fetchBatchOrders(batchId: string): Promise<OrderSummary[]> {
   const { data, error } = await createClient()
     .from('order_summary').select('*').eq('batch_id', batchId)
