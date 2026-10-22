@@ -494,10 +494,13 @@ function ChatModal({ order, items, awal, struk, onClose, onError }: {
   onClose: () => void; onError: (msg: string) => void
 }) {
   const toko = useToko()
+  const { batches } = useBatch()
   const wa = normWa(order.customer_wa)
+  // Pesanan tanpa tanggal: pakai tanggal mulai pengantaran batch
+  const tglBatch = batches.find((b) => b.id === order.batch_id)?.tanggal_ambil ?? null
   const data: DataPesan = {
     nama: order.customer_nama, kode: kodePesanan(order.id), toko: toko.nama_toko, infoPembayaran: toko.info_pembayaran, lokasi: toko.lokasi_ambil,
-    status: order.status, caraTerima: order.cara_terima, tanggalAmbil: order.tanggal_ambil, jamAmbil: order.jam_ambil,
+    status: order.status, caraTerima: order.cara_terima, tanggalAmbil: order.tanggal_ambil ?? tglBatch, jamAmbil: order.jam_ambil,
     items: items.map((i) => ({ nama: i.nama_produk_snapshot, qty: i.qty, harga: Number(i.harga_snapshot) })),
     ongkir: Number(order.ongkir), total: Number(order.total), terbayar: Number(order.terbayar), sisa: Number(order.sisa),
   }

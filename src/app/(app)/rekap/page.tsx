@@ -125,7 +125,7 @@ export default function RekapPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Rekap" kicker={batch.nama} subtitle={<>Ambil/produksi {tanggal(batch.tanggal_ambil)}</>}
+      <PageHeader title="Rekap" kicker={batch.nama} subtitle={<>Antar/ambil mulai {tanggal(batch.tanggal_ambil)}</>}
         action={<div className="no-print flex w-full flex-wrap items-center gap-2 md:w-auto"><PilihLihat lihat={lihat} onChange={setLihat} /><BatchPicker /></div>} />
       {error && <Alert>{error}</Alert>}
 

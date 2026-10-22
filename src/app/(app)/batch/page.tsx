@@ -123,7 +123,9 @@ export default function BatchPage() {
   function tutupForm() { setEditing(null); setDariId(null) }
 
   function shareWa(b: Batch) {
-    const text = `Open PO ${b.nama}!${b.tanggal_tutup ? `\nDitutup ${tanggal(b.tanggal_tutup, { weekday: 'long', day: 'numeric', month: 'long' })}.` : ''}\nPesan di sini: ${linkPemesanan(b.slug)}`
+    const tgl = (d: string) => tanggal(d, { weekday: 'long', day: 'numeric', month: 'long' })
+    const text = [`Open PO ${b.nama}!`, b.tanggal_tutup && `PO ditutup ${tgl(b.tanggal_tutup)}.`,
+      b.tanggal_ambil && `Pengantaran/ambil mulai ${tgl(b.tanggal_ambil)}.`, `Pesan di sini: ${linkPemesanan(b.slug)}`].filter(Boolean).join('\n')
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
   }
 
@@ -149,9 +151,9 @@ export default function BatchPage() {
                   <div className="min-w-0">
                     <div className="text-card font-bold">{b.nama}</div>
                     <div className="mt-1 text-sm text-neutral-800">
-                      Buka {tanggal(b.tanggal_buka, { day: 'numeric', month: 'short' })} · Tutup {tanggal(b.tanggal_tutup, { day: 'numeric', month: 'short' })}
+                      Buka {tanggal(b.tanggal_buka, { day: 'numeric', month: 'short' })} · Akhir PO {tanggal(b.tanggal_tutup, { day: 'numeric', month: 'short' })}
                     </div>
-                    <div className="text-sm text-neutral-800">Ambil/produksi {tanggal(b.tanggal_ambil)}</div>
+                    <div className="text-sm text-neutral-800">Antar/ambil mulai {tanggal(b.tanggal_ambil)}</div>
                   </div>
                   <span className={cx('tag', b.status === 'buka' ? 'bg-sage-200 text-sage-900' : 'bg-neutral-200 text-neutral-800')}>
                     {BATCH_STATUS[b.status]}
@@ -270,6 +272,10 @@ function BatchForm({ batch, dariId, onClose, onSaved, onDelete }: {
     if (!form.nama.trim()) return setError('Nama batch wajib diisi.')
     const rows = Object.entries(menu).filter(([, r]) => r.dijual)
     if (rows.length === 0) return setError('Pilih minimal 1 produk yang dijual.')
+    if (form.tanggal_buka && form.tanggal_tutup && form.tanggal_tutup < form.tanggal_buka)
+      return setError('Tanggal akhir PO tidak boleh sebelum tanggal buka.')
+    if (form.tanggal_tutup && form.tanggal_ambil && form.tanggal_ambil <= form.tanggal_tutup)
+      return setError('Tanggal mulai pengantaran harus setelah tanggal akhir PO.')
     setBusy(true)
     const supabase = createClient()
     const row = {
@@ -285,6 +291,16 @@ function BatchForm({ batch, dariId, onClose, onSaved, onDelete }: {
       : await supabase.from('po_batches').insert({ ...row, slug: buatSlug(row.nama) }).select('id').single()
     if (res.error) { setBusy(false); return setError(errMsg(res.error)) }
     const id = res.data.id as string
+
+    // Tanggal pengantaran batch berubah: pesanan aktif yang masih memakai tanggal lama (atau kosong) ikut diperbarui
+    const lama = batch.tanggal_ambil ?? null
+    if (batch.id && row.tanggal_ambil && row.tanggal_ambil !== lama) {
+      let q = supabase.from('orders').update({ tanggal_ambil: row.tanggal_ambil })
+        .eq('batch_id', id).not('status', 'in', '(selesai,dibatalkan)')
+      q = lama ? q.or(`tanggal_ambil.is.null,tanggal_ambil.eq.${lama}`) : q.is('tanggal_ambil', null)
+      const { error: eSync } = await q
+      if (eSync) { setBusy(false); return setError(errMsg(eSync)) }
+    }
 
     // Ganti daftar produk & kuota sekaligus (atomik): tidak pernah tersisa batch tanpa produk
     const { error } = await supabase.rpc('simpan_menu_batch', {
@@ -310,12 +326,13 @@ function BatchForm({ batch, dariId, onClose, onSaved, onDelete }: {
           <Field label="Tanggal buka" htmlFor="bf-buka">
             <input id="bf-buka" type="date" value={form.tanggal_buka} onChange={set('tanggal_buka')} className={inputCls} />
           </Field>
-          <Field label="Tanggal tutup" htmlFor="bf-tutup" helper="Link otomatis tutup setelah tanggal ini.">
+          <Field label="Tanggal akhir PO" htmlFor="bf-tutup" helper="Hari terakhir pembeli bisa pesan; link otomatis tutup setelahnya.">
             <input id="bf-tutup" type="date" value={form.tanggal_tutup} onChange={set('tanggal_tutup')} className={inputCls} />
           </Field>
         </div>
-        <Field label="Tanggal produksi / ambil" htmlFor="bf-ambil" helper="Dipakai sebagai tanggal ambil bawaan pesanan.">
-          <input id="bf-ambil" type="date" value={form.tanggal_ambil} onChange={set('tanggal_ambil')} className={inputCls} />
+        <Field label="Tanggal mulai pengantaran / ambil" htmlFor="bf-ambil"
+          helper="Harus setelah tanggal akhir PO. Dipakai sebagai jadwal antar/ambil pesanan dan di pesan WA.">
+          <input id="bf-ambil" type="date" min={form.tanggal_tutup ? besok(form.tanggal_tutup) : undefined} value={form.tanggal_ambil} onChange={set('tanggal_ambil')} className={inputCls} />
         </Field>
         <Field label="Status" htmlFor="bf-status" helper="Link pemesanan hanya menerima pesanan saat status Buka.">
           <select id="bf-status" value={form.status} onChange={set('status')} className={inputCls}>
@@ -364,4 +381,11 @@ function BatchForm({ batch, dariId, onClose, onSaved, onDelete }: {
       </form>
     </Modal>
   )
+}
+
+/** Tanggal (YYYY-MM-DD) satu hari setelahnya */
+function besok(d: string) {
+  const t = new Date(d + 'T00:00:00Z')
+  t.setUTCDate(t.getUTCDate() + 1)
+  return t.toISOString().slice(0, 10)
 }

@@ -151,8 +151,8 @@ export default function PemesananPage() {
           <h1>{batch.nama}</h1>
           {(batch.tanggal_tutup || batch.tanggal_ambil) && (
             <div className="text-neutral-800">
-              {batch.tanggal_tutup && <>Ditutup {tanggal(batch.tanggal_tutup, TGL_PANJANG)}. </>}
-              {batch.tanggal_ambil && <>Siap {tanggal(batch.tanggal_ambil, TGL_PANJANG)}.</>}
+              {batch.tanggal_tutup && <>PO ditutup {tanggal(batch.tanggal_tutup, TGL_PANJANG)}. </>}
+              {batch.tanggal_ambil && <>Pengantaran/ambil mulai {tanggal(batch.tanggal_ambil, TGL_PANJANG)}.</>}
             </div>
           )}
           {teksOperasional(batch) && (

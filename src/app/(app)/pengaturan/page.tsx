@@ -463,7 +463,7 @@ function Pratinjau({ toko, onChange }: { toko: Pengaturan; onChange: (p: Partial
             <div className="text-card font-extrabold">{batch?.nama ?? 'Nama batch PO'}</div>
             {batch && (
               <div className="mt-0.5 text-xs text-neutral-800">
-                Tutup {tanggal(batch.tanggal_tutup, opt)} · Siap {tanggal(batch.tanggal_ambil, opt)}
+                Akhir PO {tanggal(batch.tanggal_tutup, opt)} · Antar/ambil {tanggal(batch.tanggal_ambil, opt)}
               </div>
             )}
           </div>

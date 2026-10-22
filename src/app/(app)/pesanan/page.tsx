@@ -144,7 +144,7 @@ export default function PesananPage() {
   const ingatkan = (o: OrderSummary) => {
     const teks = buatPesan('tagihan', {
       nama: o.customer_nama, kode: kodePesanan(o.id), toko: toko.nama_toko, infoPembayaran: toko.info_pembayaran, lokasi: toko.lokasi_ambil,
-      status: o.status, caraTerima: o.cara_terima, tanggalAmbil: o.tanggal_ambil, jamAmbil: o.jam_ambil,
+      status: o.status, caraTerima: o.cara_terima, tanggalAmbil: o.tanggal_ambil ?? batch?.tanggal_ambil ?? null, jamAmbil: o.jam_ambil,
       items: items.filter((i) => i.order_id === o.id).map((i) => ({ nama: i.nama_produk_snapshot, qty: i.qty, harga: Number(i.harga_snapshot) })),
       ongkir: Number(o.ongkir), total: Number(o.total), terbayar: Number(o.terbayar), sisa: Number(o.sisa),
     }, toko.template_wa)
@@ -196,7 +196,7 @@ export default function PesananPage() {
     <>
       <div className="flex flex-wrap items-start gap-6">
       <div className="flex min-w-0 flex-[1_1_540px] flex-col gap-6">
-      <PageHeader title="Pesanan" kicker={batch.nama} subtitle={<>Ambil/produksi {tanggal(batch.tanggal_ambil)}</>}
+      <PageHeader title="Pesanan" kicker={batch.nama} subtitle={<>Antar/ambil mulai {tanggal(batch.tanggal_ambil)}</>}
         action={<>
           {kolase.length > 0 && <Terlaris list={kolase} />}
           <div className="flex flex-wrap items-center gap-2">
