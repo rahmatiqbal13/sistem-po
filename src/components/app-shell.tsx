@@ -5,13 +5,15 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import { BarChart3, CalendarRange, ClipboardList, LogOut, Package, Plus, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { sisaSesi } from '@/lib/session'
+import { sisaIdle, sisaSesi, waktuLogin } from '@/lib/session'
 import { useToko } from '@/lib/toko'
 import { fotoUrl } from '@/lib/foto'
 import { PESANAN_BARU_EVENT, daftarServiceWorker, tampilkanNotifikasi } from '@/lib/notifikasi'
 import { BATCH_STATUS } from '@/lib/types'
 import { BatchProvider, useBatch } from './batch-context'
 import { ICON, Toast, cx } from './ui'
+
+const KEY_AKTIF = 'po.aktifTerakhir'
 
 const NAV = [
   { href: '/pesanan', label: 'Pesanan', Icon: ClipboardList },
@@ -70,6 +72,48 @@ function Shell({ children }: { children: ReactNode }) {
     const onVisible = () => { if (document.visibilityState === 'visible') cek() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [router])
+
+  // Tidak ada aktivitas selama 1 jam: keluar otomatis. Waktu aktivitas dibagi antar tab lewat localStorage
+  useEffect(() => {
+    const supabase = createClient()
+    let login: number | null = null
+    let terakhir = Date.now()
+    let selesai = false
+    const baca = () => { try { return Number(localStorage.getItem(KEY_AKTIF)) || null } catch { return null } }
+    const tulis = (t: number) => { try { localStorage.setItem(KEY_AKTIF, String(t)) } catch {} }
+    const keluar = async () => {
+      if (selesai) return
+      selesai = true
+      await supabase.auth.signOut({ scope: 'local' })
+      router.replace('/login?expired=idle')
+      router.refresh()
+    }
+    const cek = () => { if (sisaIdle(Math.max(baca() ?? 0, terakhir), login) <= 0) keluar() }
+    const aktif = () => {
+      const now = Date.now()
+      if (now - terakhir < 15_000) return // cukup dicatat sekali tiap 15 detik
+      cek() // HP baru bangun setelah lama: jangan hitung sentuhan pertama sebagai aktivitas
+      if (selesai) return
+      terakhir = now
+      tulis(now)
+    }
+    supabase.auth.getClaims().then(({ data }) => {
+      login = waktuLogin(data?.claims as Parameters<typeof waktuLogin>[0])
+      // Login baru: abaikan catatan aktivitas dari sesi sebelumnya
+      terakhir = Math.max(baca() ?? 0, login ?? 0) || Date.now()
+      cek()
+    })
+    const EVENTS = ['pointerdown', 'keydown', 'scroll', 'wheel'] as const
+    EVENTS.forEach((e) => window.addEventListener(e, aktif, { passive: true }))
+    const onVisible = () => { if (document.visibilityState === 'visible') cek() }
+    document.addEventListener('visibilitychange', onVisible)
+    const interval = setInterval(cek, 30_000)
+    return () => {
+      EVENTS.forEach((e) => window.removeEventListener(e, aktif))
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(interval)
+    }
   }, [router])
 
   async function logout() {

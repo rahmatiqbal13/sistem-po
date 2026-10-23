@@ -1,5 +1,7 @@
 // Batas lama login admin. Setelah lewat, admin wajib masuk ulang walaupun token masih bisa diperbarui.
 export const SESSION_MAX_MS = 24 * 60 * 60 * 1000
+// Tanpa aktivitas selama ini, admin dikeluarkan otomatis
+export const IDLE_MAX_MS = 60 * 60 * 1000
 
 type Amr = { method?: string; timestamp?: number } | string
 
@@ -18,4 +20,13 @@ export function waktuLogin(claims: { amr?: Amr[] } | null | undefined): number |
 export function sisaSesi(claims: { amr?: Amr[] } | null | undefined, now = Date.now()): number | null {
   const t = waktuLogin(claims)
   return t == null ? null : t + SESSION_MAX_MS - now
+}
+
+/**
+ * Sisa waktu sebelum dikeluarkan karena tidak aktif (ms, ≤ 0 berarti habis).
+ * Aktivitas terakhir yang lebih lama dari waktu login (sisa sesi sebelumnya) tidak dihitung.
+ */
+export function sisaIdle(terakhirAktif: number | null, login: number | null, now = Date.now()): number {
+  const mulai = Math.max(terakhirAktif ?? 0, login ?? 0) || now
+  return mulai + IDLE_MAX_MS - now
 }
