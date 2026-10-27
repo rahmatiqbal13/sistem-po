@@ -1,4 +1,5 @@
 import type { OrderSummary } from '@/lib/types'
+import { selCsvAman } from '@/lib/keamanan'
 import { CARA_TERIMA, ORDER_STATUS, STATUS_BAYAR } from '@/lib/types'
 import type { ItemWithOrder, rekapLaba } from '@/lib/data'
 
@@ -6,8 +7,8 @@ type Row = Record<string, string | number>
 
 async function download(rows: Row[], filename: string, format: 'xlsx' | 'csv', sheet = 'Data') {
   const XLSX = await import('xlsx')
-  const ws = XLSX.utils.json_to_sheet(rows)
   if (format === 'csv') {
+    const ws = XLSX.utils.json_to_sheet(rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, selCsvAman(v)]))))
     // BOM agar Excel membaca UTF-8 dengan benar
     const blob = new Blob(['﻿' + XLSX.utils.sheet_to_csv(ws)], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
@@ -18,7 +19,7 @@ async function download(rows: Row[], filename: string, format: 'xlsx' | 'csv', s
     return
   }
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, sheet)
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sheet)
   XLSX.writeFile(wb, filename + '.xlsx')
 }
 

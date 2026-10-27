@@ -74,6 +74,17 @@ function Shell({ children }: { children: ReactNode }) {
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [router])
 
+  // Akun yang login tetapi tidak ada di daftar admin toko: keluarkan (datanya pun sudah ditolak RLS)
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.rpc('is_admin').then(async ({ data, error }) => {
+      if (error || data !== false) return
+      await supabase.auth.signOut({ scope: 'local' })
+      router.replace('/login?error=akses')
+      router.refresh()
+    })
+  }, [router])
+
   // Tidak ada aktivitas selama 1 jam: keluar otomatis. Waktu aktivitas dibagi antar tab lewat localStorage
   useEffect(() => {
     const supabase = createClient()

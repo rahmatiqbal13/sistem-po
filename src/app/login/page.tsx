@@ -13,9 +13,11 @@ export default function LoginPage() {
   const expiredParam = sp.get('expired')
   // Datang dari link reset password yang tidak valid/kedaluwarsa
   const [linkGagal, setLinkGagal] = useState(sp.get('error') === 'link')
+  // Dikeluarkan karena akun tidak terdaftar sebagai admin toko
+  const tanpaAkses = sp.get('error') === 'akses'
   // Info sesi habis cukup sekali: ditampilkan sampai mulai mengetik, dan dihapus dari URL agar tidak muncul lagi saat dimuat ulang
   const [expired, setExpired] = useState(expiredParam)
-  useEffect(() => { if (expiredParam || linkGagal) router.replace('/login', { scroll: false }) }, [expiredParam, linkGagal, router])
+  useEffect(() => { if (expiredParam || linkGagal || tanpaAkses) router.replace('/login', { scroll: false }) }, [expiredParam, linkGagal, tanpaAkses, router])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
@@ -26,12 +28,22 @@ export default function LoginPage() {
     e.preventDefault()
     setBusy(true)
     setError('')
-    const { error } = await createClient().auth.signInWithPassword({ email, password })
-    setBusy(false)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
+      setBusy(false)
       setError('Email atau password salah.')
       return
     }
+    // Password benar tetapi akun tidak ada di daftar admin toko (error = fungsi belum ada: database belum dimigrasi)
+    const { data: admin, error: eAdmin } = await supabase.rpc('is_admin')
+    if (!eAdmin && admin === false) {
+      await supabase.auth.signOut({ scope: 'local' })
+      setBusy(false)
+      setError('Akun ini tidak terdaftar sebagai admin toko. Minta pemilik toko mengundang Anda.')
+      return
+    }
+    setBusy(false)
     router.replace('/pesanan')
     router.refresh()
   }
@@ -39,6 +51,7 @@ export default function LoginPage() {
   return (
     <AuthCard title="Masuk" subtitle="Masuk untuk mencatat pesanan." tabTitle="Masuk" onSubmit={submit}>
       {error ? <Alert>{error}</Alert>
+        : tanpaAkses ? <Alert tone="warn">Akun ini tidak terdaftar sebagai admin toko. Minta pemilik toko mengundang Anda.</Alert>
         : linkGagal ? <Alert tone="warn">Link reset password tidak valid atau sudah kedaluwarsa. Minta link baru lewat “Lupa password?”.</Alert>
         : expired && <Alert tone="warn">{expired === 'idle' ? 'Anda keluar otomatis karena tidak ada aktivitas selama 1 jam. Silakan login kembali.' : 'Sesi habis, silakan login kembali.'}</Alert>}
       <Field label="Email" htmlFor="lg-email">

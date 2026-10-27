@@ -79,7 +79,7 @@ create table if not exists payments (
   order_id uuid not null references orders(id) on delete cascade,
   jumlah bigint not null check (jumlah > 0),
   metode text not null check (metode in ('transfer','ewallet','tunai')),
-  tanggal_bayar date not null default current_date,
+  tanggal_bayar date not null default (now() at time zone 'Asia/Jakarta')::date,
   bukti_path text,
   dicatat_oleh text default (auth.jwt() ->> 'email'),
   created_at timestamptz not null default now()
@@ -309,8 +309,39 @@ create trigger orders_touch before update on orders
 for each row execute function touch_order();
 
 -- ============================================================
--- Row Level Security: hanya akun yang login (pendaftaran publik dimatikan)
+-- Row Level Security: hanya akun di daftar admin_toko (bukan sekadar akun yang login)
+-- Pertama kali dijalankan, semua akun yang sudah ada di Authentication → Users menjadi pemilik.
 -- ============================================================
+
+create table if not exists admin_toko (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  peran text not null default 'admin' check (peran in ('pemilik', 'admin')),
+  created_at timestamptz not null default now()
+);
+alter table admin_toko enable row level security;
+
+-- Pertama kali: semua akun yang sudah ada adalah pemilik toko
+insert into admin_toko (user_id, peran)
+select id, 'pemilik' from auth.users
+where not exists (select 1 from admin_toko)
+on conflict do nothing;
+
+create or replace function is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from admin_toko where user_id = auth.uid())
+$$;
+revoke all on function is_admin() from public, anon;
+grant execute on function is_admin() to authenticated;
+
+drop policy if exists admin_baca on admin_toko;
+create policy admin_baca on admin_toko for select to authenticated using (is_admin());
+-- Tidak ada policy tulis: daftar admin hanya diubah dari server (service role) lewat halaman Kelola admin
+
 
 alter table customers enable row level security;
 alter table products enable row level security;
@@ -326,7 +357,7 @@ declare t text;
 begin
   foreach t in array array['customers','products','po_batches','batch_product_quotas','orders','order_items','payments','pengaturan'] loop
     execute format('drop policy if exists pemilik_all on %I', t);
-    execute format('create policy pemilik_all on %I for all to authenticated using (true) with check (true)', t);
+    execute format('create policy pemilik_all on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
   end loop;
 end $$;
 
@@ -345,7 +376,7 @@ on conflict (id) do nothing;
 
 drop policy if exists bukti_pemilik on storage.objects;
 create policy bukti_pemilik on storage.objects for all to authenticated
-  using (bucket_id = 'bukti') with check (bucket_id = 'bukti');
+  using (bucket_id = 'bukti' and public.is_admin()) with check (bucket_id = 'bukti' and public.is_admin());
 
 -- Bucket publik untuk foto produk (dibaca siapa saja, ditulis hanya pemilik)
 insert into storage.buckets (id, name, public)
@@ -354,7 +385,7 @@ on conflict (id) do update set public = true;
 
 drop policy if exists produk_pemilik on storage.objects;
 create policy produk_pemilik on storage.objects for all to authenticated
-  using (bucket_id = 'produk') with check (bucket_id = 'produk');
+  using (bucket_id = 'produk' and public.is_admin()) with check (bucket_id = 'produk' and public.is_admin());
 
 -- ============================================================
 -- Link pemesanan publik (tanpa login)
@@ -425,6 +456,52 @@ begin
 end;
 $$;
 
+-- Pembatas pesanan dari link publik: maks. 5 pesanan per IP per jam, dan maks. 100 per batch per 10 menit
+create table if not exists batas_pesanan_publik (
+  id bigint generated always as identity primary key,
+  ip text not null,
+  batch_id uuid not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists batas_pesanan_ip_idx on batas_pesanan_publik (ip, created_at);
+create index if not exists batas_pesanan_batch_idx on batas_pesanan_publik (batch_id, created_at);
+alter table batas_pesanan_publik enable row level security;
+-- Tanpa policy: hanya bisa disentuh fungsi security definer di bawah
+
+-- IP pembeli dari header permintaan API Supabase (cf-connecting-ip diisi Cloudflare, tidak bisa dipalsukan pengirim)
+create or replace function ip_peminta()
+returns text
+language sql
+stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.headers', true)::json ->> 'cf-connecting-ip', ''),
+    nullif(trim(split_part(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ',', 1)), ''),
+    'tidak-diketahui')
+$$;
+revoke all on function ip_peminta() from public, anon, authenticated;
+
+create or replace function cek_batas_pesanan(p_batch uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ip text := ip_peminta();
+begin
+  delete from batas_pesanan_publik where created_at < now() - interval '1 day';
+  if (select count(*) from batas_pesanan_publik where ip = v_ip and created_at > now() - interval '1 hour') >= 5 then
+    raise exception 'Terlalu banyak pesanan dari jaringan ini. Coba lagi nanti atau hubungi kami lewat WhatsApp.';
+  end if;
+  if (select count(*) from batas_pesanan_publik where batch_id = p_batch and created_at > now() - interval '10 minutes') >= 100 then
+    raise exception 'Sedang banyak pesanan masuk. Coba lagi beberapa menit lagi.';
+  end if;
+  insert into batas_pesanan_publik (ip, batch_id) values (v_ip, p_batch);
+end;
+$$;
+revoke all on function cek_batas_pesanan(uuid) from public, anon, authenticated;
+
 -- payload: { nama, no_wa, cara_terima, alamat, catatan, items: [{ product_id, qty, catatan }] }
 create or replace function submit_public_order(p_slug text, payload jsonb)
 returns jsonb
@@ -478,6 +555,8 @@ begin
      or jsonb_array_length(payload->'items') not between 1 and 20 then
     raise exception 'Pilih minimal 1 produk.';
   end if;
+
+  perform cek_batas_pesanan(b.id);
 
   -- Pembeli dikenali dari nomor WA; pembeli lama tidak diubah datanya
   select * into v_cust from customers where norm_wa(no_wa) = v_wa order by created_at limit 1;

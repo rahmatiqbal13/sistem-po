@@ -6,10 +6,14 @@ Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Postgre
 
 ## Setup
 
-1. **Buat project Supabase**, lalu buka *SQL Editor* dan jalankan seluruh isi [supabase/schema.sql](supabase/schema.sql).
-   Ini membuat tabel, view `order_summary`, fungsi `save_order` / `set_order_status`, RLS, dan bucket privat `bukti`.
-2. **Matikan pendaftaran publik**: *Authentication → Sign In / Providers → Email* → nonaktifkan "Allow new users to sign up".
-3. **Buat dua akun pemilik**: *Authentication → Users → Add user* (centang *Auto Confirm User*).
+1. **Buat project Supabase**, lalu matikan pendaftaran publik: *Authentication → Sign In / Providers* → nonaktifkan
+   "Allow new users to sign up" dan "Allow anonymous sign-ins".
+2. **Buat akun pemilik**: *Authentication → Users → Add user* (centang *Auto Confirm User*).
+3. Buka *SQL Editor* dan jalankan seluruh isi [supabase/schema.sql](supabase/schema.sql), lalu semua file di
+   [supabase/migrations/](supabase/migrations/) berurutan.
+   Ini membuat tabel, view `order_summary`, fungsi, RLS, dan bucket privat `bukti`. Akun yang sudah ada saat itu
+   otomatis menjadi **pemilik** (tabel `admin_toko`). Admin berikutnya diundang dari *Pengaturan → Admin toko*.
+   Hanya akun di `admin_toko` yang bisa membuka data; akun lain yang login tetap ditolak.
 4. **Isi environment**: salin `.env.example` menjadi `.env.local`, isi URL dan anon key dari *Project Settings → API*.
 5. Jalankan:
    ```bash

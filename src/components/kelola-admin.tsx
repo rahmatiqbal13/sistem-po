@@ -5,7 +5,8 @@ import { Copy, Share2, Trash2, UserPlus } from 'lucide-react'
 import { tanggal } from '@/lib/format'
 import { Alert, Button, Field, ICON, cx, inputCls, useConfirm } from './ui'
 
-type Admin = { id: string; email: string; dibuat: string; terakhirMasuk: string | null; aktif: boolean }
+type Peran = 'pemilik' | 'admin'
+type Admin = { id: string; peran: Peran | null; email: string; dibuat: string; terakhirMasuk: string | null; aktif: boolean }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { 'content-type': 'application/json' } })
@@ -36,10 +37,11 @@ function KartuLink({ email, link, onTutup }: { email: string; link: string; onTu
   )
 }
 
-/** Daftar admin toko + undang & hapus. Semua admin punya akses yang sama. */
+/** Daftar admin toko. Hanya pemilik yang bisa mengundang & menghapus admin; pemilik tidak bisa dihapus dari aplikasi. */
 export function KelolaAdmin() {
   const [admins, setAdmins] = useState<Admin[] | null>(null)
   const [saya, setSaya] = useState('')
+  const [peranSaya, setPeranSaya] = useState<Peran | null>(null)
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -49,9 +51,10 @@ export function KelolaAdmin() {
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ admins: Admin[]; saya: string }>('/api/admin')
+      const d = await api<{ admins: Admin[]; saya: string; peranSaya: Peran }>('/api/admin')
       setAdmins(d.admins)
       setSaya(d.saya)
+      setPeranSaya(d.peranSaya)
     } catch (e) { setError((e as Error).message); setAdmins([]) }
   }, [])
   useEffect(() => { load() }, [load])
@@ -93,7 +96,9 @@ export function KelolaAdmin() {
     <section aria-labelledby="ttl-admin" className="flex flex-col gap-4 rounded-card bg-surface p-6">
       <div>
         <h2 id="ttl-admin" className="text-section">Admin toko</h2>
-        <div className="mt-0.5 text-sm text-neutral-800">Semua admin bisa mengelola pesanan, produk, batch, dan pengaturan.</div>
+        <div className="mt-0.5 text-sm text-neutral-800">
+          Semua admin bisa mengelola pesanan, produk, batch, dan pengaturan. Hanya pemilik yang bisa mengundang dan menghapus admin.
+        </div>
       </div>
       {error && <Alert>{error}</Alert>}
       {info && <Alert tone="ok">{info}</Alert>}
@@ -107,18 +112,21 @@ export function KelolaAdmin() {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate font-bold">{a.email}</span>
                   {a.id === saya && <span className="tag bg-accent-100 text-accent-900">Anda</span>}
-                  <span className={cx('tag', a.aktif ? 'bg-sage-200 text-sage-900' : 'bg-accent-200 text-accent-900')}>
-                    {a.aktif ? 'Aktif' : 'Menunggu aktivasi'}
-                  </span>
+                  {a.peran === 'pemilik' && <span className="tag bg-neutral-200 text-ink">Pemilik</span>}
+                  {a.peran === null
+                    ? <span className="tag bg-accent-200 text-accent-900">Tanpa akses</span>
+                    : <span className={cx('tag', a.aktif ? 'bg-sage-200 text-sage-900' : 'bg-accent-200 text-accent-900')}>
+                        {a.aktif ? 'Aktif' : 'Menunggu aktivasi'}
+                      </span>}
                 </div>
                 <div className="text-xs text-neutral-800">
                   {a.terakhirMasuk ? `Terakhir masuk ${tanggal(a.terakhirMasuk, { day: 'numeric', month: 'short', year: 'numeric' })}`
                     : `Diundang ${tanggal(a.dibuat, { day: 'numeric', month: 'short', year: 'numeric' })}`}
                 </div>
               </div>
-              {a.id !== saya && (
+              {peranSaya === 'pemilik' && a.id !== saya && a.peran !== 'pemilik' && (
                 <div className="flex flex-wrap gap-1">
-                  {!a.aktif && (
+                  {!a.aktif && a.peran && (
                     <Button variant="ghost" className="min-h-[40px] px-2.5 text-caption" onClick={() => buatLink(a)}>Link aktivasi</Button>
                   )}
                   <button type="button" onClick={() => hapus(a)} aria-label={`Hapus admin ${a.email}`} title="Hapus admin"
@@ -130,14 +138,18 @@ export function KelolaAdmin() {
         </ul>
       )}
 
-      <form onSubmit={undang} className="flex flex-wrap items-end gap-2">
+      {admins?.some((a) => a.peran === null) && (
+        <Alert tone="warn">Ada akun berlabel <b>Tanpa akses</b>: akun ini terdaftar di Supabase tetapi tidak bisa membuka data toko. Hapus bila tidak dikenal.</Alert>
+      )}
+
+      {peranSaya === 'pemilik' && <form onSubmit={undang} className="flex flex-wrap items-end gap-2">
         <Field label="Undang admin baru" htmlFor="adm-email" className="min-w-0 flex-[1_1_240px]"
           helper="Undangan dikirim ke email ini. Link aktivasi juga bisa dibagikan lewat WhatsApp.">
           <input id="adm-email" type="email" required placeholder="nama@email.com" value={email}
             onChange={(e) => { setEmail(e.target.value); setError('') }} className={inputCls} />
         </Field>
         <Button type="submit" disabled={busy} className="mb-[26px]"><UserPlus size={16} {...ICON} />{busy ? 'Mengundang…' : 'Undang'}</Button>
-      </form>
+      </form>}
       {dialog}
     </section>
   )

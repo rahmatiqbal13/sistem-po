@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { jalurAman } from '@/lib/keamanan'
 import { AuthCard } from '@/components/auth-card'
 import { Alert } from '@/components/ui'
 
@@ -24,7 +25,7 @@ export default function KonfirmasiPage() {
   const code = sp.get('code')
   const nextParam = sp.get('next') ?? '/reset-password'
   // Hanya jalur di situs ini, bukan URL luar
-  const next = nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/reset-password'
+  const next = jalurAman(nextParam, '/reset-password')
   const undangan = type === 'invite' || sp.get('undangan') === '1'
   const adaToken = !!(tokenHash && type) || !!code
 

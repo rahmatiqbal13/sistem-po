@@ -5,7 +5,7 @@ import { linkAktivasi } from '../../link'
 
 /** Buat ulang link aktivasi untuk admin yang belum pernah masuk, untuk dibagikan lewat WA */
 export async function POST(request: NextRequest, ctx: RouteContext<'/api/admin/[id]/link'>) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin({ pemilik: true })
   if (auth instanceof Response) return auth
   const { id } = await ctx.params
   const { data, error } = await auth.admin.auth.admin.getUserById(id)

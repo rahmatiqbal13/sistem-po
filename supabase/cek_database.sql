@@ -41,7 +41,13 @@ with perlu(jenis, nama, file) as (values
   ('fungsi', 'log_pesanan', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
   ('fungsi', 'log_pembayaran', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
   ('realtime', 'orders', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
-  ('kolom', 'pengaturan.cadangan_terakhir', 'migrations/20261018_1_log_notifikasi_cadangan.sql')
+  ('kolom', 'pengaturan.cadangan_terakhir', 'migrations/20261018_1_log_notifikasi_cadangan.sql'),
+  -- migrasi 2026-10-26 (keamanan)
+  ('tabel', 'admin_toko', 'migrations/20261026_1_keamanan.sql'),
+  ('fungsi', 'is_admin', 'migrations/20261026_1_keamanan.sql'),
+  ('tabel', 'batas_pesanan_publik', 'migrations/20261026_1_keamanan.sql'),
+  ('fungsi', 'cek_batas_pesanan', 'migrations/20261026_1_keamanan.sql'),
+  ('fungsi', 'log_hapus_pesanan', 'migrations/20261026_1_keamanan.sql')
 )
 select p.jenis, p.nama,
   case when (case p.jenis

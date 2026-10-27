@@ -14,13 +14,14 @@ export async function createRouteClient() {
   })
 }
 
-export type AdminCtx = { admin: SupabaseClient; userId: string; email: string | null }
+export type Peran = 'pemilik' | 'admin'
+export type AdminCtx = { admin: SupabaseClient; userId: string; email: string | null; peran: Peran }
 
 /**
- * Pastikan pemanggil adalah admin yang login (sesi < 24 jam), lalu beri klien service-role untuk Auth Admin API.
- * Mengembalikan Response error bila tidak boleh.
+ * Pastikan pemanggil login (sesi < 24 jam) dan terdaftar di admin_toko, lalu beri klien service-role untuk Auth Admin API.
+ * `pemilik: true` = hanya pemilik toko yang boleh. Mengembalikan Response error bila tidak boleh.
  */
-export async function requireAdmin(): Promise<AdminCtx | Response> {
+export async function requireAdmin({ pemilik = false } = {}): Promise<AdminCtx | Response> {
   const { data } = await (await createRouteClient()).auth.getClaims()
   const claims = data?.claims
   const sisa = sisaSesi(claims as Parameters<typeof sisaSesi>[0])
@@ -30,13 +31,18 @@ export async function requireAdmin(): Promise<AdminCtx | Response> {
     return Response.json({ error: 'SUPABASE_SERVICE_ROLE_KEY belum diisi di pengaturan server, jadi admin belum bisa dikelola dari aplikasi.' }, { status: 500 })
   }
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false, autoRefreshToken: false } })
-  return { admin, userId: claims.sub, email: (claims.email as string | undefined) ?? null }
+  const { data: row, error } = await admin.from('admin_toko').select('peran').eq('user_id', claims.sub).maybeSingle()
+  if (error) return Response.json({ error: 'Daftar admin belum siap. Jalankan migrasi keamanan di Supabase.' }, { status: 500 })
+  if (!row) return Response.json({ error: 'Akun ini tidak terdaftar sebagai admin toko.' }, { status: 403 })
+  if (pemilik && row.peran !== 'pemilik') return Response.json({ error: 'Hanya pemilik toko yang bisa mengelola admin.' }, { status: 403 })
+  return { admin, userId: claims.sub, email: (claims.email as string | undefined) ?? null, peran: row.peran as Peran }
 }
 
-/** Data admin yang aman dikirim ke browser */
-export function ringkasAdmin(u: User) {
+/** Data admin yang aman dikirim ke browser. peran null = akun ada di Auth tetapi tidak punya akses toko */
+export function ringkasAdmin(u: User, peran: Peran | null) {
   return {
     id: u.id,
+    peran,
     email: u.email ?? '',
     dibuat: u.created_at,
     terakhirMasuk: u.last_sign_in_at ?? null,

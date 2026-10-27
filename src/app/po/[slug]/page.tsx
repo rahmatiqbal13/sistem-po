@@ -294,6 +294,10 @@ export default function PemesananPage() {
               <div className="mt-1 flex justify-between border-t border-divider pt-2 text-section font-bold"><span>Total</span><span>{rupiah(total)}</span></div>
               {cara !== 'pickup' && <p className="m-0 text-label text-neutral-800">Belum termasuk ongkir. Penjual akan mengonfirmasi ongkir lewat WhatsApp.</p>}
             </div>
+            <p className="m-0 px-2 text-xs text-neutral-800">
+              Nama, nomor WhatsApp, dan alamat hanya dipakai {batch.nama_toko} untuk memproses pesanan ini dan menghubungi Anda,
+              tidak dibagikan ke pihak lain. Dengan mengirim, Anda setuju data ini disimpan untuk keperluan tersebut.
+            </p>
             <Button className="btn-lg" onClick={kirim} disabled={busy}>{busy ? 'Mengirim…' : 'Kirim pesanan'}</Button>
             <Button variant="ghost" className="text-accent-800 hover:text-accent-800" onClick={() => setReview(false)} disabled={busy}>Ubah pesanan</Button>
           </div>
